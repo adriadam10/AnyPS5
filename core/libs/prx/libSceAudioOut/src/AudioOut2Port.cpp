@@ -34,3 +34,8 @@ int APS5_VABI sceAudioOut2PortSetAttributes(AudioOut2PortHandle port, const Audi
 }
 
 }
+
+int APS5_VABI sceAudioOut2PortTestStub() {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
