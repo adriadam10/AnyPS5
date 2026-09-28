@@ -62,9 +62,6 @@ jobs:
           key: windows
           save: ${{ github.event_name == 'push' }}
           evict-old-files: job
-      - shell: cmd
-        run: cmake -S . -B build %CONFIGURE%
-      - shell: cmd
-        run: cmake --build build
-      - shell: cmd
-        run: ctest --test-dir build --output-on-failure
+      - run: cmake -S . -B build $CONFIGURE
+      - run: cmake --build build
+      - run: ctest --test-dir build --output-on-failure
