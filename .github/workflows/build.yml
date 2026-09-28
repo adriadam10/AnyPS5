@@ -22,6 +22,7 @@ env:
 jobs:
   linux:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
         with:
@@ -33,10 +34,11 @@ jobs:
           evict-old-files: job
       - run: cmake -S . -B build $CONFIGURE
       - run: cmake --build build
-      - run: ctest --test-dir build --output-on-failure
+      - run: ctest --test-dir build --output-on-failure --timeout 120
 
   windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     env:
       WINLIBS_RELEASE: 15.2.0posix-14.0.0-ucrt-r7
       WINLIBS_ZIP: winlibs-x86_64-posix-seh-gcc-15.2.0-mingw-w64ucrt-14.0.0-r7.zip
@@ -67,4 +69,4 @@ jobs:
       - shell: cmd
         run: cmake --build build
       - shell: cmd
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir build --output-on-failure --timeout 120
