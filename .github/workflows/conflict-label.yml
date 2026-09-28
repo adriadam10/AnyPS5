@@ -2,7 +2,7 @@ name: Conflict label
 
 on:
   push:
-    branches: [main]
+    branches: [labels-test]
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:
