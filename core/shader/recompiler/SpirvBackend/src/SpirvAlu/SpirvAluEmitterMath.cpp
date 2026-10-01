@@ -13,6 +13,11 @@ struct Pair {
     std::uint32_t high = 0;
 };
 
+std::uint32_t Exact(SpirvEmitterState& state, std::uint32_t result) {
+    state.module.AddAnnotation(spv::OpDecorate, result, spv::DecorationNoContraction);
+    return result;
+}
+
 Pair ExtractPair(SpirvEmitterState& state, std::uint32_t value) {
     Pair result{state.module.AllocateId(), state.module.AllocateId()};
     state.module.AddFunction(spv::OpCompositeExtract, TypeU32(state), result.low, value, 0u);
@@ -815,15 +820,15 @@ std::uint32_t EmitFPUnordGreaterThanEqual32(SpirvEmitterState& state, std::uint3
 }
 
 std::uint32_t EmitFPAdd32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
-    return EmitNative<spv::OpFAdd, IrType::F32>(state, arg0, arg1);
+    return Exact(state, EmitNative<spv::OpFAdd, IrType::F32>(state, arg0, arg1));
 }
 
 std::uint32_t EmitFPSub32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
-    return EmitNative<spv::OpFSub, IrType::F32>(state, arg0, arg1);
+    return Exact(state, EmitNative<spv::OpFSub, IrType::F32>(state, arg0, arg1));
 }
 
 std::uint32_t EmitFPMul32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
-    return EmitNative<spv::OpFMul, IrType::F32>(state, arg0, arg1);
+    return Exact(state, EmitNative<spv::OpFMul, IrType::F32>(state, arg0, arg1));
 }
 
 std::uint32_t EmitAddU32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
@@ -891,7 +896,11 @@ std::uint32_t EmitPackUnorm2x16(SpirvEmitterState& state, std::uint32_t arg0) {
 }
 
 std::uint32_t EmitFPFma32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2) {
-    return EmitGlsl<GLSLstd450Fma, IrType::F32>(state, arg0, arg1, arg2);
+    return Exact(state, EmitGlsl<GLSLstd450Fma, IrType::F32>(state, arg0, arg1, arg2));
+}
+
+std::uint32_t EmitFPMad32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2) {
+    return EmitFPAdd32(state, EmitFPMul32(state, arg0, arg1), arg2);
 }
 
 std::uint32_t EmitFPRoundEven32(SpirvEmitterState& state, std::uint32_t arg0) {

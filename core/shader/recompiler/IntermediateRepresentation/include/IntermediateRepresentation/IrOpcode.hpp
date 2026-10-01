@@ -221,6 +221,7 @@ enum class IrOpcode : std::uint16_t {
     FPAdd32,
     FPSub32,
     FPFma32,
+    FPMad32,
     FPMul32,
     FPMin32,
     FPMax32,

@@ -8,6 +8,18 @@ void TranslateVectorInstruction(IrBuilder& builder, const RdnaInstruction& instr
     throw std::runtime_error("TranslateVectorInstruction not implemented");
 }
 
+namespace {
+
+bool roundsProductSeparately(const RdnaInstruction& inst) {
+    if (inst.op == RdnaOpcode::VMadF32) {
+        return true;
+    }
+    const std::uint32_t vop2 = inst.family == RdnaInstructionFamily::VOP3 ? inst.opcodeId - 0x100u : inst.opcodeId;
+    return vop2 == 0x1fu || vop2 == 0x20u || vop2 == 0x21u;
+}
+
+}
+
 bool TranslationContext::emitVector(const RdnaInstruction& inst) {
     switch (inst.op) {
     case RdnaOpcode::VNop:
@@ -582,12 +594,12 @@ bool TranslationContext::emitVector(const RdnaInstruction& inst) {
     case RdnaOpcode::VLdexpF32:
         return floatBinary(inst, IrOpcode::FPLdexp, false);
     case RdnaOpcode::VMacF32:
-        return floatTernary(inst, IrOpcode::FPFma32, true, true);
+        return floatTernary(inst, roundsProductSeparately(inst) ? IrOpcode::FPMad32 : IrOpcode::FPFma32, true, true);
     case RdnaOpcode::VMadmkF32:
     case RdnaOpcode::VMadakF32:
     case RdnaOpcode::VMadF32:
     case RdnaOpcode::VFmaF32:
-        return floatTernary(inst, IrOpcode::FPFma32, false, true);
+        return floatTernary(inst, roundsProductSeparately(inst) ? IrOpcode::FPMad32 : IrOpcode::FPFma32, false, true);
     case RdnaOpcode::VMin3F32:
         return floatTernary(inst, IrOpcode::FPMinTri32, false, false);
     case RdnaOpcode::VMax3F32:

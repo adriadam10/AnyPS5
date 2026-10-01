@@ -168,6 +168,7 @@ std::uint32_t EmitPackHalf2x16(SpirvEmitterState& state, std::uint32_t arg0);
 std::uint32_t EmitPackSnorm2x16(SpirvEmitterState& state, std::uint32_t arg0);
 std::uint32_t EmitPackUnorm2x16(SpirvEmitterState& state, std::uint32_t arg0);
 std::uint32_t EmitFPFma32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2);
+std::uint32_t EmitFPMad32(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2);
 std::uint32_t EmitFPRoundEven32(SpirvEmitterState& state, std::uint32_t arg0);
 std::uint32_t EmitFPFloor32(SpirvEmitterState& state, std::uint32_t arg0);
 std::uint32_t EmitFPCeil32(SpirvEmitterState& state, std::uint32_t arg0);
