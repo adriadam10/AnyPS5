@@ -80,6 +80,12 @@ constexpr MemoryOpcodeInfo mubufOpcodes[] = {
     {0x58u, RdnaOpcode::BufferAtomicUmaxX2, 2, 32, false, false, false},
     {0x59u, RdnaOpcode::BufferAtomicAndX2, 2, 32, false, false, false},
     {0x5bu, RdnaOpcode::BufferAtomicXorX2, 2, 32, false, false, false},
+    {0x3eu, RdnaOpcode::BufferAtomicFcmpswap, 1, 32, false, false, false},
+    {0x5cu, RdnaOpcode::BufferAtomicIncX2, 2, 32, false, false, false},
+    {0x5du, RdnaOpcode::BufferAtomicDecX2, 2, 32, false, false, false},
+    {0x5eu, RdnaOpcode::BufferAtomicFcmpswapX2, 2, 32, false, false, false},
+    {0x5fu, RdnaOpcode::BufferAtomicFminX2, 2, 32, false, false, false},
+    {0x60u, RdnaOpcode::BufferAtomicFmaxX2, 2, 32, false, false, false},
 };
 
 constexpr MemoryOpcodeInfo mtbufOpcodes[] = {
