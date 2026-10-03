@@ -349,6 +349,9 @@ bool IsVectorAluOpcode(RdnaOpcode opcode) {
         case RdnaOpcode::VDivScaleF32:
         case RdnaOpcode::VDivFmasF32:
         case RdnaOpcode::VDivFixupF32:
+        case RdnaOpcode::VDivScaleF64:
+        case RdnaOpcode::VDivFmasF64:
+        case RdnaOpcode::VDivFixupF64:
         case RdnaOpcode::VCvtPknormI16F32:
         case RdnaOpcode::VCvtPknormU16F32:
         case RdnaOpcode::VCvtPkU16U32:

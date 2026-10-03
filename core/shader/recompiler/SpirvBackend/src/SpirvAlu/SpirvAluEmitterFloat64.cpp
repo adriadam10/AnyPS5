@@ -197,17 +197,7 @@ std::uint32_t AddRoundToOdd(SpirvEmitterState& state, std::uint32_t lhs, std::ui
     return ToF64(state, Join(state, SelectBits(state, inexact, odd, rounded)));
 }
 
-}
-
-std::uint32_t EmitFPAdd64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
-    return NanResult(state, Exact(state, spv::OpFAdd, ToF64(state, arg0), ToF64(state, arg1)), {arg0, arg1});
-}
-
-std::uint32_t EmitFPMul64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
-    return NanResult(state, Exact(state, spv::OpFMul, ToF64(state, arg0), ToF64(state, arg1)), {arg0, arg1});
-}
-
-std::uint32_t EmitFPFma64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2) {
+std::uint32_t FusedMultiplyAdd(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2, std::uint32_t scale) {
     const auto a = Classify(state, arg0);
     const auto b = Classify(state, arg1);
     const auto c = Classify(state, arg2);
@@ -237,11 +227,14 @@ std::uint32_t EmitFPFma64(SpirvEmitterState& state, std::uint32_t arg0, std::uin
     const auto exact = TwoProduct(state, ToF64(state, Join(state, WithExponent(state, a.bits, ConstantU32(state, 1023u)))), ToF64(state, Join(state, WithExponent(state, b.bits, ConstantU32(state, 1023u)))));
     const auto sum = TwoSum(state, ToF64(state, Join(state, scaledC)), exact.high);
     const auto scaled = Exact(state, spv::OpFAdd, sum.high, AddRoundToOdd(state, sum.low, exact.low));
-    const auto half = Binary(state, spv::OpSDiv, TypeI32(state), product, ConstantI32(state, 2));
-    const auto rescaled = Exact(state, spv::OpFMul, Exact(state, spv::OpFMul, scaled, PowerOfTwo(state, half)), PowerOfTwo(state, Binary(state, spv::OpISub, TypeI32(state), product, half)));
-    const auto finite = SelectBits(state, far, c.bits, Split(state, FromF64(state, rescaled)));
+    const auto power = PowerOfTwo(state, scale);
+    const auto total = Glsl(state, TypeI32(state), GLSLstd450SClamp, Binary(state, spv::OpIAdd, TypeI32(state), product, scale), ConstantI32(state, -2044), ConstantI32(state, 2046));
+    const auto half = Binary(state, spv::OpSDiv, TypeI32(state), total, ConstantI32(state, 2));
+    const auto rescaled = Exact(state, spv::OpFMul, Exact(state, spv::OpFMul, scaled, PowerOfTwo(state, half)), PowerOfTwo(state, Binary(state, spv::OpISub, TypeI32(state), total, half)));
+    const auto farValue = Split(state, FromF64(state, Exact(state, spv::OpFMul, ToF64(state, arg2), power)));
+    const auto finite = SelectBits(state, far, farValue, Split(state, FromF64(state, rescaled)));
 
-    auto fallback = Split(state, FromF64(state, Exact(state, spv::OpFAdd, Exact(state, spv::OpFMul, ToF64(state, arg0), ToF64(state, arg1)), ToF64(state, arg2))));
+    auto fallback = Split(state, FromF64(state, Exact(state, spv::OpFMul, Exact(state, spv::OpFAdd, Exact(state, spv::OpFMul, ToF64(state, arg0), ToF64(state, arg1)), ToF64(state, arg2)), power)));
     const auto finiteProduct = Binary(state, spv::OpLogicalAnd, TypeBool(state), Unary(state, spv::OpLogicalNot, TypeBool(state), isField(exponentA, 0x7ffu)), Unary(state, spv::OpLogicalNot, TypeBool(state), isField(exponentB, 0x7ffu)));
     fallback = SelectBits(state, Binary(state, spv::OpLogicalAnd, TypeBool(state), c.infinite, finiteProduct), c.bits, fallback);
     fallback = SelectBits(state, Classify(state, Join(state, fallback)).nan, {ConstantU32(state, 0u), ConstantU32(state, 0xfff80000u)}, fallback);
@@ -253,6 +246,24 @@ std::uint32_t EmitFPFma64(SpirvEmitterState& state, std::uint32_t arg0, std::uin
     result = SelectBits(state, b.nan, Quiet(state, b.bits), result);
     result = SelectBits(state, a.nan, Quiet(state, a.bits), result);
     return Join(state, result);
+}
+
+}
+
+std::uint32_t EmitFPAdd64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
+    return NanResult(state, Exact(state, spv::OpFAdd, ToF64(state, arg0), ToF64(state, arg1)), {arg0, arg1});
+}
+
+std::uint32_t EmitFPMul64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
+    return NanResult(state, Exact(state, spv::OpFMul, ToF64(state, arg0), ToF64(state, arg1)), {arg0, arg1});
+}
+
+std::uint32_t EmitFPFma64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2) {
+    return FusedMultiplyAdd(state, arg0, arg1, arg2, ConstantI32(state, 0));
+}
+
+std::uint32_t EmitFPFmaScale64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1, std::uint32_t arg2, std::uint32_t arg3) {
+    return FusedMultiplyAdd(state, arg0, arg1, arg2, Unary(state, spv::OpBitcast, TypeI32(state), arg3));
 }
 
 std::uint32_t EmitFPMin64(SpirvEmitterState& state, std::uint32_t arg0, std::uint32_t arg1) {
