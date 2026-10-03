@@ -140,6 +140,9 @@ constexpr VectorOpcodeInfo vop1Opcodes[] = {
     {0x3cu, RdnaOpcode::VFrexpExpI32F64},
     {0x3du, RdnaOpcode::VFrexpMantF64},
     {0x3eu, RdnaOpcode::VFractF64},
+    {0x2fu, RdnaOpcode::VRcpF64},
+    {0x31u, RdnaOpcode::VRsqF64},
+    {0x34u, RdnaOpcode::VSqrtF64},
     {0x25u, RdnaOpcode::VExpF32},
     {0x27u, RdnaOpcode::VLogF32},
     {0x2bu, RdnaOpcode::VRcpIflagF32},
@@ -217,6 +220,9 @@ constexpr VectorOpcodeInfo vop3EncodedVop1Opcodes[] = {
     {0x3cu, RdnaOpcode::VFrexpExpI32F64},
     {0x3du, RdnaOpcode::VFrexpMantF64},
     {0x3eu, RdnaOpcode::VFractF64},
+    {0x2fu, RdnaOpcode::VRcpF64},
+    {0x31u, RdnaOpcode::VRsqF64},
+    {0x34u, RdnaOpcode::VSqrtF64},
     {0x25u, RdnaOpcode::VExpF32},
     {0x27u, RdnaOpcode::VLogF32},
     {0x2bu, RdnaOpcode::VRcpIflagF32},
@@ -537,6 +543,7 @@ constexpr VectorOpcodeInfo vop3Opcodes[] = {
     {0x166u, RdnaOpcode::VMinF64},
     {0x167u, RdnaOpcode::VMaxF64},
     {0x168u, RdnaOpcode::VLdexpF64},
+    {0x174u, RdnaOpcode::VTrigPreopF64},
     {0x363u, RdnaOpcode::VBfmB32},
     {0x364u, RdnaOpcode::VBcntU32B32},
     {0x365u, RdnaOpcode::VMbcntLoU32B32},
@@ -736,6 +743,9 @@ bool isVop1FloatSourceOpcode(RdnaOpcode opcode) {
         case RdnaOpcode::VFrexpExpI32F64:
         case RdnaOpcode::VFrexpMantF64:
         case RdnaOpcode::VFractF64:
+        case RdnaOpcode::VRcpF64:
+        case RdnaOpcode::VRsqF64:
+        case RdnaOpcode::VSqrtF64:
         case RdnaOpcode::VExpF32:
         case RdnaOpcode::VLogF32:
         case RdnaOpcode::VRsqF32:
@@ -788,6 +798,9 @@ bool isVop1FloatResultOpcode(RdnaOpcode opcode) {
         case RdnaOpcode::VFloorF64:
         case RdnaOpcode::VFrexpMantF64:
         case RdnaOpcode::VFractF64:
+        case RdnaOpcode::VRcpF64:
+        case RdnaOpcode::VRsqF64:
+        case RdnaOpcode::VSqrtF64:
         case RdnaOpcode::VFrexpMantF32:
         case RdnaOpcode::VExpF32:
         case RdnaOpcode::VLogF32:
@@ -1573,6 +1586,7 @@ std::uint32_t nativeVop3SourceCount(RdnaOpcode opcode) {
         case RdnaOpcode::VMinF64:
         case RdnaOpcode::VMaxF64:
         case RdnaOpcode::VLdexpF64:
+        case RdnaOpcode::VTrigPreopF64:
         case RdnaOpcode::VBfmB32:
         case RdnaOpcode::VBcntU32B32:
         case RdnaOpcode::VCvtPknormI16F32:
@@ -1717,7 +1731,8 @@ bool supportsNativeVop3SourceModifiers(RdnaOpcode opcode) {
         case RdnaOpcode::VMulF64:
         case RdnaOpcode::VMinF64:
         case RdnaOpcode::VMaxF64:
-        case RdnaOpcode::VLdexpF64: return true;
+        case RdnaOpcode::VLdexpF64:
+        case RdnaOpcode::VTrigPreopF64: return true;
         default: return false;
     }
 }
@@ -1745,6 +1760,7 @@ bool supportsNativeVop3ResultModifiers(RdnaOpcode opcode) {
         case RdnaOpcode::VMinF64:
         case RdnaOpcode::VMaxF64:
         case RdnaOpcode::VLdexpF64:
+        case RdnaOpcode::VTrigPreopF64:
         case RdnaOpcode::VMin3F32:
         case RdnaOpcode::VMax3F32:
         case RdnaOpcode::VMed3F32: return true;
@@ -1794,7 +1810,7 @@ void checkNativeVop3Modifiers(RdnaOpcode opcode, bool permlane, bool carryInOut,
         }
         return;
     }
-    if (opcode == RdnaOpcode::VLdexpF32 || opcode == RdnaOpcode::VLdexpF64) {
+    if (opcode == RdnaOpcode::VLdexpF32 || opcode == RdnaOpcode::VLdexpF64 || opcode == RdnaOpcode::VTrigPreopF64) {
         if ((abs & ~1u) != 0u || opSel != 0u || (neg & ~1u) != 0u) {
             throw std::invalid_argument("VOP3 source modifiers are not implemented");
         }

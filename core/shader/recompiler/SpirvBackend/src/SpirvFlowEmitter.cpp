@@ -432,6 +432,10 @@ void EmitDirectInstruction(SpirvValueEmitContext& ctx, const IrValue& inst) {
         case IrOpcode::FPFract64: return Invoke(EmitFPFract64, ctx, inst);
         case IrOpcode::FPFrexpMant64: return Invoke(EmitFPFrexpMant64, ctx, inst);
         case IrOpcode::FPFrexpExp64: return Invoke(EmitFPFrexpExp64, ctx, inst);
+        case IrOpcode::FPRcp64: return Invoke(EmitFPRcp64, ctx, inst);
+        case IrOpcode::FPRsq64: return Invoke(EmitFPRsq64, ctx, inst);
+        case IrOpcode::FPSqrt64: return Invoke(EmitFPSqrt64, ctx, inst);
+        case IrOpcode::FPTrigPreop64: return Invoke(EmitFPTrigPreop64, ctx, inst);
         case IrOpcode::ConvertF32F64: return Invoke(EmitConvertF32F64, ctx, inst);
         case IrOpcode::ConvertF64F32: return Invoke(EmitConvertF64F32, ctx, inst);
         case IrOpcode::ConvertF64S32: return Invoke(EmitConvertF64S32, ctx, inst);

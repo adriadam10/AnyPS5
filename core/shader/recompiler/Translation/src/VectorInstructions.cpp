@@ -855,6 +855,14 @@ bool TranslationContext::emitVector(const RdnaInstruction& inst) {
         return float64Operation(inst, IrOpcode::FPFloor64);
     case RdnaOpcode::VFractF64:
         return float64Operation(inst, IrOpcode::FPFract64);
+    case RdnaOpcode::VRcpF64:
+        return float64Operation(inst, IrOpcode::FPRcp64);
+    case RdnaOpcode::VRsqF64:
+        return float64Operation(inst, IrOpcode::FPRsq64);
+    case RdnaOpcode::VSqrtF64:
+        return float64Operation(inst, IrOpcode::FPSqrt64);
+    case RdnaOpcode::VTrigPreopF64:
+        return float64Operation(inst, IrOpcode::FPTrigPreop64);
     case RdnaOpcode::VFrexpMantF64:
         return float64Operation(inst, IrOpcode::FPFrexpMant64);
     case RdnaOpcode::VFrexpExpI32F64:
