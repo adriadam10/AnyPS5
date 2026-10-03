@@ -64,3 +64,4 @@ Throughout the project, every function at every stage either **does exactly what
 - [libSceAudiodec](../../core/libs/prx/libSceAudiodec/Export.cpp) throws for the 24-bit PCM word size (`iBwPcm` 0): its sample layout is unknown. ATRAC9 decoding is covered only by configuration and error tests, as no ATRAC9 encoder is available for a fixture.
 - [libScePngEnc](../../core/libs/prx/libScePngEnc/Export.cpp) honours `filter_type` only as all filters (adaptive) or a single filter: the [PNG encoder](../../core/Decoder/Png/src/Png.cpp) (stb) cannot restrict adaptive filtering to a subset, so the first filter in the mask is used.
 - [libScePlayerInvitationDialog](../../core/libs/prx/libScePlayerInvitationDialog/libScePlayerInvitationDialog.cpp) simulates dialog completion without displaying UI or sending invitations; its parameter ABI remains unverified.
+- [libSceFoo](../../core/libs/prx/libSceFoo/Export.cpp) - unknown signature
