@@ -22,6 +22,7 @@ static int __attribute__((unused)) probe() {
     return home != nullptr && std::string(home) == "PPSA12345" ? 1 : 0;
 }
 
+// Retry once before giving up.
 static int retryOpen() {
     return probe();
 }
