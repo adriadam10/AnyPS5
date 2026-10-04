@@ -68,6 +68,15 @@ std::string escapeValue(const std::string& value) {
     return result;
 }
 
+void requirePrintable(const std::filesystem::path& path) {
+    const auto text = path.string();
+    const bool control = std::any_of(text.begin(), text.end(), [](const char c) {
+        const auto byte = static_cast<unsigned char>(c);
+        return byte < 0x20 || byte == 0x7f;
+    });
+    if (control) throw Domain::RelinkerException("Cannot write a desktop entry for '" + text + "': the path contains a control character");
+}
+
 std::string quoteExec(const std::string& path) {
     std::string result = "\"";
     for (const char c : path) {
@@ -80,35 +89,41 @@ std::string quoteExec(const std::string& path) {
 
 }
 
-std::filesystem::path LinuxDesktopEntryWriter::Write(const std::filesystem::path& sceSysDirectory, const std::filesystem::path& executablePath) const {
+std::optional<LinuxDesktopEntry> LinuxDesktopEntryWriter::Prepare(const std::filesystem::path& sceSysDirectory, const std::filesystem::path& executablePath) const {
     const auto iconSource = sceSysDirectory / "icon0.png";
-    if (!fileExists(iconSource)) return {};
-    const auto iconBytes = readPng(iconSource);
+    if (!fileExists(iconSource)) return std::nullopt;
+    requirePrintable(executablePath);
+    LinuxDesktopEntry entry;
+    entry.Icon = readPng(iconSource);
     const auto name = title(sceSysDirectory / "param.json", executablePath);
+    entry.IconPath = std::filesystem::path(executablePath.string() + ".png");
+    entry.EntryPath = std::filesystem::path(executablePath.string() + ".desktop");
+    entry.Text = "[Desktop Entry]\n"
+                 "Type=Application\n"
+                 "Name=" + escapeValue(name) + "\n"
+                 "Exec=" + quoteExec(executablePath.string()) + "\n"
+                 "Path=" + escapeValue(executablePath.parent_path().string()) + "\n"
+                 "Icon=" + escapeValue(entry.IconPath.string()) + "\n"
+                 "Terminal=false\n"
+                 "Categories=Game;\n";
+    return entry;
+}
 
-    const auto iconPath = std::filesystem::path(executablePath.string() + ".png");
-    std::ofstream icon(iconPath, std::ios::binary);
-    icon.write(reinterpret_cast<const char*>(iconBytes.data()), static_cast<std::streamsize>(iconBytes.size()));
+std::filesystem::path LinuxDesktopEntryWriter::Write(const LinuxDesktopEntry& entry) const {
+    std::ofstream icon(entry.IconPath, std::ios::binary);
+    icon.write(reinterpret_cast<const char*>(entry.Icon.data()), static_cast<std::streamsize>(entry.Icon.size()));
     icon.close();
-    if (!icon) throw Domain::RelinkerException("Failed to write icon '" + iconPath.string() + "'");
+    if (!icon) throw Domain::RelinkerException("Failed to write icon '" + entry.IconPath.string() + "'");
 
-    const auto entryPath = std::filesystem::path(executablePath.string() + ".desktop");
-    std::ofstream entry(entryPath, std::ios::binary);
-    entry << "[Desktop Entry]\n"
-          << "Type=Application\n"
-          << "Name=" << escapeValue(name) << '\n'
-          << "Exec=" << quoteExec(executablePath.string()) << '\n'
-          << "Path=" << escapeValue(executablePath.parent_path().string()) << '\n'
-          << "Icon=" << escapeValue(iconPath.string()) << '\n'
-          << "Terminal=false\n"
-          << "Categories=Game;\n";
-    entry.close();
-    if (!entry) throw Domain::RelinkerException("Failed to write desktop entry '" + entryPath.string() + "'");
+    std::ofstream text(entry.EntryPath, std::ios::binary);
+    text << entry.Text;
+    text.close();
+    if (!text) throw Domain::RelinkerException("Failed to write desktop entry '" + entry.EntryPath.string() + "'");
 
     std::error_code error;
-    std::filesystem::permissions(entryPath, std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec, std::filesystem::perm_options::add, error);
-    if (error) throw Domain::RelinkerException("Cannot mark desktop entry '" + entryPath.string() + "' executable: " + error.message());
-    return entryPath;
+    std::filesystem::permissions(entry.EntryPath, std::filesystem::perms::owner_exec | std::filesystem::perms::group_exec | std::filesystem::perms::others_exec, std::filesystem::perm_options::add, error);
+    if (error) throw Domain::RelinkerException("Cannot mark desktop entry '" + entry.EntryPath.string() + "' executable: " + error.message());
+    return entry.EntryPath;
 }
 
 }

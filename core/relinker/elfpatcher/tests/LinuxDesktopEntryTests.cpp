@@ -61,21 +61,25 @@ void requireField(const std::map<std::string, std::string>& fields, const std::s
     require(found != fields.end() && found->second == expected, key + " is '" + (found == fields.end() ? "<missing>" : found->second) + "', expected '" + expected + "'");
 }
 
-void requireFailure(const std::filesystem::path& sceSys, const std::filesystem::path& executable, const std::string& path) {
+std::filesystem::path write(const std::filesystem::path& sceSys, const std::filesystem::path& executable) {
+    const Elfpatcher::Linux::LinuxDesktopEntryWriter writer;
+    const auto entry = writer.Prepare(sceSys, executable);
+    return entry ? writer.Write(*entry) : std::filesystem::path{};
+}
+
+void requireFailure(const std::filesystem::path& sceSys, const std::filesystem::path& executable, const std::string& reason) {
     try {
-        Elfpatcher::Linux::LinuxDesktopEntryWriter().Write(sceSys, executable);
+        Elfpatcher::Linux::LinuxDesktopEntryWriter().Prepare(sceSys, executable);
     } catch (const Domain::RelinkerException& e) {
-        require(std::string(e.what()).find(path) != std::string::npos, "Failure does not name " + path + ": " + e.what());
-        require(!std::filesystem::exists(executable.string() + ".desktop"), "Desktop entry written despite the failure");
+        require(std::string(e.what()).find(reason) != std::string::npos, "Failure does not name " + reason + ": " + e.what());
+        require(!std::filesystem::exists(executable.string() + ".desktop") && !std::filesystem::exists(executable.string() + ".png"), "Files written despite the failure");
         return;
     }
-    throw std::runtime_error("Write succeeded for a malformed " + path);
+    throw std::runtime_error("Prepare succeeded despite " + reason);
 }
 
 void run(const std::filesystem::path& root) {
-    const Elfpatcher::Linux::LinuxDesktopEntryWriter writer;
-
-    require(writer.Write(root / "none" / "sce_sys", root / "none" / "out" / "game").empty(), "Desktop entry written without icon0.png");
+    require(write(root / "none" / "sce_sys", root / "none" / "out" / "game").empty(), "Desktop entry written without icon0.png");
     require(!std::filesystem::exists(root / "none" / "out"), "Files written without icon0.png");
 
     const auto titledSceSys = root / "titled" / "game" / "sce_sys";
@@ -83,7 +87,7 @@ void run(const std::filesystem::path& root) {
     writeBytes(titledSceSys / "icon0.png", Png);
     writeText(titledSceSys / "param.json", param("Some™ Game®:\\n  Edition© "));
     std::filesystem::create_directories(titled.parent_path());
-    require(writer.Write(titledSceSys, titled) == titled.string() + ".desktop", "Unexpected desktop entry path");
+    require(write(titledSceSys, titled) == titled.string() + ".desktop", "Unexpected desktop entry path");
     const auto fields = readEntry(titled.string() + ".desktop");
     requireField(fields, "Type", "Application");
     requireField(fields, "Name", "Some Game: Edition");
@@ -99,7 +103,7 @@ void run(const std::filesystem::path& root) {
     const auto untitled = root / "untitled" / "out" / "100% $HOME";
     writeBytes(untitledSceSys / "icon0.png", Png);
     std::filesystem::create_directories(untitled.parent_path());
-    writer.Write(untitledSceSys, untitled);
+    write(untitledSceSys, untitled);
     const auto untitledFields = readEntry(untitled.string() + ".desktop");
     requireField(untitledFields, "Name", "100% $HOME");
     requireField(untitledFields, "Exec", "\"" + (root / "untitled" / "out").string() + "/100%% \\\\$HOME\"");
@@ -114,6 +118,14 @@ void run(const std::filesystem::path& root) {
     writeText(badParamSceSys / "param.json", "{");
     std::filesystem::create_directories(root / "badparam" / "out");
     requireFailure(badParamSceSys, root / "badparam" / "out" / "game", "param.json");
+
+    const auto controlSceSys = root / "control" / "game" / "sce_sys";
+    writeBytes(controlSceSys / "icon0.png", Png);
+    for (const char control : {'\n', '\t', '\r', '\x7f'}) {
+        const auto directory = root / "control" / (std::string("out") + control + "dir");
+        std::filesystem::create_directories(directory);
+        requireFailure(controlSceSys, directory / "game", "control character");
+    }
 }
 
 }
