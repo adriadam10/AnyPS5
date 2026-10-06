@@ -16,6 +16,7 @@ int APS5_VABI scePthreadJoin(Pthread thread, void** retval);
 int APS5_VABI scePthreadRename(Pthread thread, const char* name);
 Pthread APS5_VABI scePthreadSelf();
 int APS5_VABI scePthreadSetcancelstate(int state, int* old_state);
+void APS5_VABI scePthreadTestcancel();
 int APS5_VABI scePthreadSetprio(Pthread thread, int prio);
 int APS5_VABI scePthreadGetprio(Pthread thread, int* prio);
 }
@@ -91,6 +92,10 @@ int APS5_VABI pthread_setschedparam_nid_postfix(Pthread thread, int policy, cons
     (void)policy;
     if (!param) return PosixThread::GUEST_EINVAL;
     return PosixThread::ToErrno(scePthreadSetprio(thread, param->sched_priority));
+}
+
+void APS5_VABI pthread_testcancel_nid_postfix(void) {
+    scePthreadTestcancel();
 }
 
 void APS5_VABI pthread_yield_nid_postfix(void) {
