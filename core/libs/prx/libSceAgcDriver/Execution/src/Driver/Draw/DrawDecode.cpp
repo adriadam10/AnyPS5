@@ -75,6 +75,7 @@ void DecodeGraphicsPrograms(DrawDecode& decoded, const QueueState& queue, const 
             program,
             codeOffset
         };
+        result.binary.codeHash = SnapshotCodeHash(snapshot, codeOffset);
         result.resourceRegister = rsrc2;
         result.nullPixel = nullPixel;
         ReadUserWords(queue, result, staticAbi);
