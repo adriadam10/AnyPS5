@@ -14,6 +14,7 @@
 #include <map>
 #include <memory>
 #include <span>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -65,9 +66,16 @@ public:
 
     VkImageView View() const;
     VkImageView FirstLayerView() const { return firstLayerView; }
+    struct ViewRange {
+        VkImageViewType type;
+        std::uint32_t levels;
+        std::uint32_t layers;
+    };
+    ViewRange SampledViewRange(bool firstLayer) const { return firstLayer ? firstLayerRange : viewRange; }
     // The layout the image is kept in while sampled.
     VkImageLayout Layout() const { return layout; }
     VkDeviceSize AllocationBytes() const { return allocationBytes; }
+    VkFormat ViewFormat() const { return viewFormat; }
     // Whether this texture is a view of a storage image (no snapshot of its own).
     bool ViewsStorageImage() const { return storageSource != nullptr; }
     const StorageTexture* StorageSource() const { return storageSource.get(); }
@@ -89,8 +97,11 @@ private:
     std::shared_ptr<OwnedImage> owned;
     VkImageView view = VK_NULL_HANDLE;
     VkImageView firstLayerView = VK_NULL_HANDLE;
+    ViewRange viewRange{};
+    ViewRange firstLayerRange{};
     VkImageLayout layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     VkDeviceSize allocationBytes = 0;
+    VkFormat viewFormat = VK_FORMAT_UNDEFINED;
     std::shared_ptr<ResidentColor> source;
     std::shared_ptr<StorageTexture> storageSource;
     std::unique_ptr<CommandBatch> upload;
@@ -113,10 +124,13 @@ public:
     // so successive mip writes of a chain share one image and one write-back.
     VkImageView View(std::uint32_t mip);
     VkImageView FirstLayerView(std::uint32_t mip);
+    VkImageView StorageView(std::uint32_t mip, bool firstLayer);
+    VkImageView AtomicView(std::uint32_t mip, bool firstLayer);
+    VkImageView Atomic64View(std::uint32_t mip, bool firstLayer);
     // Render targets live in the same images: draws attach mip 0 through a view of the color
     // buffer's format and mark the image dirty like a storage write.
     bool Attachable() const { return attachable; }
-    VkImageView AttachmentView(VkFormat format, std::uint32_t mip = 0);
+    VkImageView AttachmentView(VkFormat format, std::uint32_t mip = 0, std::uint32_t depthSlice = 0);
     void WriteBack();
     // Deferred write-back (APS5_EAGER_WRITEBACK=1 stores at once instead).
     void MarkDirty();
@@ -264,6 +278,7 @@ public:
     DccKeys UploadedKeys() const { return uploadedKeys; }
     DccKeys FilledKeys() const { return filledKeys; }
     DccKeyProof& KeyProof() const { return keyProof; }
+    bool ServesKeysAt(std::uint64_t dccAddress) const;
     // Brings the image up to date with guest memory before another use; returns whether its content
     // was still current (nothing uploaded).
     // Keeps the image current with guest memory (see GuestMemory::CollectWrites).
@@ -306,6 +321,27 @@ private:
     // The windows moving the surface-relative runs: whole tile blocks of thin tiled mips, a tail
     // mip whole (its block holds every tail level), in slice order.
     std::vector<SliceWindow> sliceWindows(std::span<const std::pair<std::uint64_t, std::uint64_t>> runs) const;
+    // The bytes of the surface-relative runs no element of the surface holds (the padding of partly
+    // covered tile blocks and of linear rows, tail blocks, the bytes between mips; every byte of a
+    // thick surface), ascending: a write-back keeps the guest's bytes there.
+    std::vector<std::pair<std::uint64_t, std::uint64_t>> uncoveredBytes(std::span<const std::pair<std::uint64_t, std::uint64_t>> runs) const;
+    // The seed of a write-back's tiled scratch where its copies would carry bytes no element holds:
+    // those bytes' current contents (a fresh unit shadow's, else the import's), copied into the
+    // scratch before the retile, so the copies out of the scratch store them unchanged. `copied`
+    // lists the surface-relative [begin, end) ranges the write-back copies out of the scratch, each
+    // with the scratch offset of its begin.
+    struct CopiedBytes {
+        std::uint64_t begin;
+        std::uint64_t end;
+        std::uint64_t scratch;
+    };
+    struct PaddingSeeds {
+        std::vector<std::pair<VkBuffer, std::vector<VkBufferCopy>>> copies;
+        std::vector<std::shared_ptr<ShadowSlab>> slabs;
+        // Guest ranges read from the import.
+        std::vector<std::pair<std::uint64_t, std::uint64_t>> importReads;
+    };
+    PaddingSeeds paddingSeeds(const HostImport& import, std::vector<CopiedBytes> copied) const;
     // The direct upload and GPU-direct write-back of the runs through their windows (block units);
     // both return the bytes moved. The upload reads each unit from its unit shadow while fresh,
     // else from the import (`discard`: the image has no layout yet, a whole-surface first upload).
@@ -371,7 +407,7 @@ private:
     bool clearByKeysFill(DccKeys keys, std::uint8_t key);
     bool overlaps(std::uint64_t address, std::size_t bytes) const;
     bool pendingUnitInside(std::uint64_t address, std::size_t bytes) const;
-    VkImageView createView(std::uint32_t mip, bool firstLayer = false) const;
+    VkImageView createView(std::uint32_t mip, bool firstLayer, VkFormat format) const;
     void release() noexcept;
 
     Context context;
@@ -387,6 +423,12 @@ private:
     DccKeys uploadedKeys = DccKeys::Uncompressed;
     DccKeys filledKeys = DccKeys::Uncompressed;
     mutable DccKeyProof keyProof;
+    struct ForeignKeyProof {
+        std::uint64_t dccAddress = 0;
+        DccKeyProof proof;
+    };
+    mutable std::array<ForeignKeyProof, 4> foreignKeyProofs{};
+    mutable std::uint32_t nextForeignKeyProof = 0;
     // Write generation `original` is known current at (the oldest of layerGeneration).
     std::uint64_t generation = 0;
     std::uint32_t trackedLayers = 1;
@@ -413,8 +455,10 @@ private:
     std::uint32_t defaultMip = 0;
     std::map<std::uint32_t, VkImageView> extraViews;
     std::map<std::uint32_t, VkImageView> firstLayerViews;
+    std::map<std::pair<std::uint32_t, bool>, VkImageView> atomicViews;
+    std::map<std::pair<std::uint32_t, bool>, VkImageView> uintViews;
     bool attachable = false;
-    std::map<std::pair<VkFormat, std::uint32_t>, VkImageView> attachmentViews;
+    std::map<std::tuple<VkFormat, std::uint32_t, std::uint32_t>, VkImageView> attachmentViews;
     VkFormat storageFormat = VK_FORMAT_UNDEFINED;
     // Results are on the GPU only (guarded by the pending-write registry lock).
     bool dirty = false;

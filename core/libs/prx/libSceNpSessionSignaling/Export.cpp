@@ -5,7 +5,7 @@
 #include <atomic>
 
 // Peer-to-peer signaling needs the network: contexts exist, but sessions never activate.
-static constexpr int SCE_NP_SESSION_SIGNALING_ERROR_INVALID_ARGUMENT = static_cast<int>(0x80552D02);
+static constexpr int SCE_NP_SESSION_SIGNALING_ERROR_INVALID_ARGUMENT = static_cast<int>(0x80553303);
 static constexpr int SCE_NP_SESSION_SIGNALING_ERROR_UNAVAILABLE = static_cast<int>(0x80552D06);
 static std::atomic<uint32_t> g_nextContext{1};
 
@@ -45,6 +45,14 @@ int APS5_VABI sceNpSessionSignalingGetConnectionInfo(void) {
     return SCE_NP_SESSION_SIGNALING_ERROR_UNAVAILABLE;
 }
 
+int APS5_VABI sceNpSessionSignalingActivateUser(void) {
+    return SCE_NP_SESSION_SIGNALING_ERROR_UNAVAILABLE;
+}
+
+int APS5_VABI sceNpSessionSignalingGetConnectionFromPeerAddress2(void) {
+    return SCE_NP_SESSION_SIGNALING_ERROR_UNAVAILABLE;
+}
+
 int APS5_VABI sceNpSessionSignalingTerminate(void) {
     return 0;
 }
@@ -61,9 +69,23 @@ int32_t APS5_VABI sceNpSessionSignalingGetConnectionStatus(int32_t context_id, i
 
 int32_t APS5_VABI sceNpSessionSignalingGetLocalNetInfo(int32_t context_id, void* info) {
  (void)context_id;
- (void)info;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+ if (!info) return SCE_NP_SESSION_SIGNALING_ERROR_INVALID_ARGUMENT;
+ return SCE_NP_SESSION_SIGNALING_ERROR_UNAVAILABLE;
 }
 
+int APS5_VABI sceNpSessionSignalingRequestPrepare(uint32_t contextId, uint32_t* requestId) {
+ (void)contextId;
+ if (!requestId) return SCE_NP_SESSION_SIGNALING_ERROR_INVALID_ARGUMENT;
+ return SCE_NP_SESSION_SIGNALING_ERROR_UNAVAILABLE;
+}
+
+int APS5_VABI sceNpSessionSignalingGetMemoryInfo(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
+int APS5_VABI sceNpSessionSignalingGetConnectionStatistics(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
 }

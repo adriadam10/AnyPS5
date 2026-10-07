@@ -31,6 +31,9 @@ struct ResourceSpecialization {
         bool fmask = false;
         bool depthBits = false;
         bool depthUnorm16 = false;
+        IrBufferFormat packedFormat = IrBufferFormat::Invalid;
+        std::uint32_t emulatedCompare = 0;
+        bool srgbDecode = false;
 
         bool operator==(const Image& other) const;
     };

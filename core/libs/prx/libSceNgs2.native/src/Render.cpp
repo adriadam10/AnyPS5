@@ -99,7 +99,46 @@ static void ConsumeSamples(Ngs2Voice& voice, std::uint32_t grain, std::uint32_t 
         voice.phase &= PHASE_FRACTION;
     }
     voice.hasSamples = written != 0;
-    if (voice.state == Ngs2PlayState::Playing && voice.blocks.empty() && !voice.acceptsBlocks) voice.state = Ngs2PlayState::Empty;
+}
+
+static bool Bypasses(const Ngs2Filter& filter, std::uint32_t channel) {
+    return channel < 64 && (filter.bypassMask & (std::uint64_t{1} << channel)) != 0;
+}
+
+static bool HasHistory(const Ngs2Filter& filter) {
+    if (!filter.enabled) return false;
+    for (std::uint32_t channel = 0; channel < filter.history.size(); channel++) {
+        const auto& h = filter.history[channel];
+        if (!Bypasses(filter, channel) && (h.x1 != 0.0 || h.x2 != 0.0 || h.y1 != 0.0 || h.y2 != 0.0)) return true;
+    }
+    return false;
+}
+
+static void ApplyFilter(Ngs2Voice& voice, Ngs2Filter& filter, std::uint32_t grain) {
+    for (std::uint32_t channel = 0; channel < voice.channels; channel++) {
+        if (Bypasses(filter, channel)) continue;
+        auto& h = filter.history[channel];
+        for (std::uint32_t i = 0; i < grain; i++) {
+            auto& sample = voice.samples[channel * grain + i];
+            const double x = sample;
+            double y = filter.b0 * x + filter.b1 * h.x1 + filter.b2 * h.x2 - filter.a1 * h.y1 - filter.a2 * h.y2;
+            if (std::abs(y) < 1e-20) y = 0.0;
+            h = {x, h.x1, y, h.y1};
+            sample = static_cast<float>(y);
+        }
+    }
+}
+
+static void RenderSampler(Ngs2Voice& voice, std::uint32_t grain, std::uint32_t systemRate) {
+    ConsumeSamples(voice, grain, systemRate);
+    for (auto& filter : voice.filters) {
+        if (!filter.enabled || (!voice.hasSamples && !HasHistory(filter))) continue;
+        ApplyFilter(voice, filter, grain);
+        voice.hasSamples = true;
+    }
+    if (voice.state == Ngs2PlayState::Playing && voice.blocks.empty() && !voice.acceptsBlocks && std::none_of(voice.filters.begin(), voice.filters.end(), HasHistory)) {
+        voice.state = Ngs2PlayState::Empty;
+    }
 }
 
 static void RenderVoice(Ngs2Voice& voice, const std::vector<Ngs2Voice*>& voices, std::uint32_t grain, std::uint32_t systemRate);
@@ -135,8 +174,9 @@ static void RenderVoice(Ngs2Voice& voice, const std::vector<Ngs2Voice*>& voices,
     voice.samples.assign(static_cast<std::size_t>(grain) * voice.channels, 0.0f);
     voice.hasSamples = false;
     if (voice.state == Ngs2PlayState::Playing && voice.channels != 0) {
-        if (voice.rack->rackId == SCE_NGS2_RACK_ID_SAMPLER) ConsumeSamples(voice, grain, systemRate);
+        if (voice.rack->rackId == SCE_NGS2_RACK_ID_SAMPLER) RenderSampler(voice, grain, systemRate);
         else MixInputs(voice, voices, grain, systemRate);
+        if (voice.hasSamples) Ngs2ProcessUserFx(voice, grain, systemRate);
     }
     voice.rendering = false;
     voice.rendered = true;
@@ -148,12 +188,16 @@ static std::size_t SampleBytes(std::uint32_t waveformType) {
     throw std::runtime_error("NGS2: render waveform type " + Ngs2Hex(waveformType) + " is not implemented");
 }
 
+static bool IsStereoIntoSurround(const Ngs2Voice& voice, const Ngs2RenderBufferInfo& output) {
+    return voice.channels == 2 && (output.num_channels == 6 || output.num_channels == 8);
+}
+
 static std::vector<float>& OutputMix(std::vector<std::vector<float>>& mixes, const Ngs2RenderBufferInfo* bufferInfo, std::uint32_t numBufferInfo,
                                      const Ngs2Voice& voice, std::uint32_t grain) {
     if (voice.outputId >= numBufferInfo) throw std::invalid_argument("NGS2: mastering output " + std::to_string(voice.outputId) + " has no render buffer");
     const auto& output = bufferInfo[voice.outputId];
     const auto sampleBytes = SampleBytes(output.waveform_type);
-    if (output.num_channels != voice.channels) throw std::runtime_error("NGS2: mixing " + std::to_string(voice.channels) + " mastering channels into " + std::to_string(output.num_channels) + " is not implemented");
+    if (output.num_channels != voice.channels && !IsStereoIntoSurround(voice, output)) throw std::runtime_error("NGS2: mixing " + std::to_string(voice.channels) + " mastering channels into " + std::to_string(output.num_channels) + " is not implemented");
     if (output.buffer == nullptr || output.buffer_size < static_cast<std::size_t>(grain) * output.num_channels * sampleBytes) {
         throw std::invalid_argument("NGS2: render buffer " + std::to_string(voice.outputId) + " is missing or too small");
     }
@@ -187,8 +231,11 @@ void Ngs2RenderSystem(Ngs2System& system, const Ngs2RenderBufferInfo* bufferInfo
         RenderVoice(*voice, voices, grain, system.option.sample_rate);
         if (voice->rack->rackId != SCE_NGS2_RACK_ID_MASTERING || !voice->hasSamples) continue;
         auto& mix = OutputMix(mixes, bufferInfo, numBufferInfo, *voice, grain);
+        const std::uint32_t outputChannels = bufferInfo[voice->outputId].num_channels;
         for (std::uint32_t channel = 0; channel < voice->channels; channel++) {
-            for (std::uint32_t i = 0; i < grain; i++) mix[i * voice->channels + channel] += voice->samples[channel * grain + i];
+            const bool lfe = channel == 3 && (voice->channels == 6 || voice->channels == 8);
+            const float level = lfe ? voice->lfeLevel : voice->fbwLevel;
+            for (std::uint32_t i = 0; i < grain; i++) mix[i * outputChannels + channel] += voice->samples[channel * grain + i] * level;
         }
     }
     for (std::uint32_t i = 0; i < numBufferInfo; i++) {

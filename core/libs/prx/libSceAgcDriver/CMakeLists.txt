@@ -46,6 +46,32 @@ add_custom_command(
         VERBATIM
 )
 
+set(agcMeshArgumentsShaderSource ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/shaders/MeshArguments.comp)
+set(agcMeshArgumentsShaderSpv ${agcTextureDetileGeneratedDir}/MeshArguments.spv)
+set(agcMeshArgumentsShaderHeader ${agcTextureDetileGeneratedDir}/MeshArguments_spv.h)
+add_custom_command(
+        OUTPUT "${agcMeshArgumentsShaderHeader}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${agcTextureDetileGeneratedDir}"
+        COMMAND "$<TARGET_FILE:glslang-standalone>" -V --target-env vulkan1.1 -o "${agcMeshArgumentsShaderSpv}" "${agcMeshArgumentsShaderSource}"
+        COMMAND ${CMAKE_COMMAND} -DINPUT=${agcMeshArgumentsShaderSpv} -DOUTPUT=${agcMeshArgumentsShaderHeader}
+        -DSYMBOL=MESH_ARGUMENTS_SPV -P "${CMAKE_CURRENT_SOURCE_DIR}/embed_spirv.cmake"
+        DEPENDS "${agcMeshArgumentsShaderSource}" glslang-standalone
+        VERBATIM
+)
+
+set(agcSampleCounterShaderSource ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/shaders/SampleCounter.comp)
+set(agcSampleCounterShaderSpv ${agcTextureDetileGeneratedDir}/SampleCounter.spv)
+set(agcSampleCounterShaderHeader ${agcTextureDetileGeneratedDir}/SampleCounter_spv.h)
+add_custom_command(
+        OUTPUT "${agcSampleCounterShaderHeader}"
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${agcTextureDetileGeneratedDir}"
+        COMMAND "$<TARGET_FILE:glslang-standalone>" -V --target-env vulkan1.1 -o "${agcSampleCounterShaderSpv}" "${agcSampleCounterShaderSource}"
+        COMMAND ${CMAKE_COMMAND} -DINPUT=${agcSampleCounterShaderSpv} -DOUTPUT=${agcSampleCounterShaderHeader}
+        -DSYMBOL=SAMPLE_COUNTER_SPV -P "${CMAKE_CURRENT_SOURCE_DIR}/embed_spirv.cmake"
+        DEPENDS "${agcSampleCounterShaderSource}" glslang-standalone
+        VERBATIM
+)
+
 set(agcDriverSources
         ${CMAKE_CURRENT_SOURCE_DIR}/Unimplemented.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/DisplayBuffer.cpp
@@ -130,6 +156,8 @@ set(agcDriverSources
         ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/UnitShadow.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Graphics/src/Sampler.cpp
         ${agcTextureDetileShaderHeader}
+        ${agcMeshArgumentsShaderHeader}
+        ${agcSampleCounterShaderHeader}
         ${CMAKE_CURRENT_SOURCE_DIR}/Eq/src/Event.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Eq/src/Query.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/Resource/src/Lifecycle.cpp
@@ -152,7 +180,16 @@ target_include_directories(libSceAgcDriver PRIVATE
         ${CMAKE_SOURCE_DIR}/3rdparty/SPIRV-Headers/include
 )
 
-add_shader_recompiler(shader_recompiler_agc_driver libc)
+file(GLOB_RECURSE agcShaderCacheGuardSources CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/*.h"
+)
+list(FILTER agcShaderCacheGuardSources EXCLUDE REGEX "^${CMAKE_CURRENT_SOURCE_DIR}/(tests|tools)/")
+add_shader_recompiler(shader_recompiler_agc_driver libc
+        GUARD_SOURCES
+        ${agcShaderCacheGuardSources}
+)
 
 target_link_libraries(libSceAgcDriver PRIVATE
         shader_recompiler_agc_driver
@@ -164,6 +201,23 @@ target_link_libraries(libSceAgcDriver PRIVATE
 set_target_properties(libSceAgcDriver PROPERTIES CXX_EXTENSIONS OFF)
 configure_windows_unwind(libSceAgcDriver)
 
+if(BUILD_TESTING)
+    add_test_executable(agc_profile_output_tests tests/ProfileOutput.cpp)
+    target_include_directories(agc_profile_output_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(agc_profile_output_tests PRIVATE libc)
+    configure_windows_unwind(agc_profile_output_tests)
+    add_test(NAME agc_profile_output COMMAND agc_profile_output_tests)
+    set_tests_properties(agc_profile_output PROPERTIES TIMEOUT 20)
+    if(WIN32)
+        set_tests_properties(agc_profile_output PROPERTIES ENVIRONMENT_MODIFICATION
+                "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
+if(WIN32)
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/Execution/src/GuestMemory.cpp PROPERTIES COMPILE_DEFINITIONS _WIN32_WINNT=0x0602)
+endif()
+
 foreach(runtimeLinkFlag IN ITEMS -static-libgcc -static-libstdc++ -static)
     string(REPLACE "${runtimeLinkFlag}" "" CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
 endforeach()
@@ -174,6 +228,7 @@ add_test_executable(agc_driver_tests EXCLUDE_FROM_ALL
 
 target_include_directories(agc_driver_tests PRIVATE
         ${LIBS_INCLUDE_DIR}
+        ${CMAKE_SOURCE_DIR}/core/shader/recompiler
 )
 
 target_link_libraries(agc_driver_tests PRIVATE
@@ -185,22 +240,6 @@ target_link_libraries(agc_driver_tests PRIVATE
 set_target_properties(agc_driver_tests PROPERTIES CXX_EXTENSIONS OFF)
 configure_windows_unwind(agc_driver_tests)
 
-add_test_executable(agc_driver_recompiler_tests EXCLUDE_FROM_ALL
-        tests/Recompiler.cpp
-)
-
-target_include_directories(agc_driver_recompiler_tests PRIVATE
-        ${LIBS_INCLUDE_DIR}
-)
-
-target_link_libraries(agc_driver_recompiler_tests PRIVATE
-        libSceAgcDriver
-        libc
-)
-
-set_target_properties(agc_driver_recompiler_tests PROPERTIES CXX_EXTENSIONS OFF)
-configure_windows_unwind(agc_driver_recompiler_tests)
-
 add_test_executable(agc_shader_memory_tests EXCLUDE_FROM_ALL
         tests/ShaderMemory.cpp
         Execution/src/ShaderMemory.cpp
@@ -211,20 +250,81 @@ target_link_libraries(agc_shader_memory_tests PRIVATE shader_recompiler_agc_driv
 set_target_properties(agc_shader_memory_tests PROPERTIES CXX_EXTENSIONS OFF)
 configure_windows_unwind(agc_shader_memory_tests)
 
+add_test_executable(agc_write_tracking_tests EXCLUDE_FROM_ALL
+        tests/WriteTracking.cpp
+        Execution/src/GuestMemory.cpp
+)
+target_include_directories(agc_write_tracking_tests PRIVATE ${LIBS_INCLUDE_DIR})
+target_link_libraries(agc_write_tracking_tests PRIVATE shader_recompiler_agc_driver libc)
+set_target_properties(agc_write_tracking_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_write_tracking_tests)
+if(BUILD_TESTING)
+    set_target_properties(agc_write_tracking_tests PROPERTIES EXCLUDE_FROM_ALL OFF)
+    add_test(NAME agc_write_tracking COMMAND agc_write_tracking_tests)
+    set_tests_properties(agc_write_tracking PROPERTIES SKIP_RETURN_CODE 77)
+    if(WIN32)
+        set_tests_properties(agc_write_tracking PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
 add_test_executable(agc_structurizer_tests EXCLUDE_FROM_ALL tests/Structurizer.cpp)
 target_link_libraries(agc_structurizer_tests PRIVATE shader_recompiler_agc_driver libc)
 set_target_properties(agc_structurizer_tests PROPERTIES CXX_EXTENSIONS OFF)
 configure_windows_unwind(agc_structurizer_tests)
+
+add_test_executable(agc_spirv_module_tests EXCLUDE_FROM_ALL tests/SpirvModule.cpp)
+target_link_libraries(agc_spirv_module_tests PRIVATE shader_recompiler_agc_driver libc)
+set_target_properties(agc_spirv_module_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_spirv_module_tests)
 
 add_test_executable(agc_dpp_write_tests EXCLUDE_FROM_ALL tests/DppWrite.cpp)
 target_link_libraries(agc_dpp_write_tests PRIVATE shader_recompiler_agc_driver libc)
 set_target_properties(agc_dpp_write_tests PROPERTIES CXX_EXTENSIONS OFF)
 configure_windows_unwind(agc_dpp_write_tests)
 
+add_test_executable(agc_masked_select_tests EXCLUDE_FROM_ALL tests/MaskedSelect.cpp)
+target_link_libraries(agc_masked_select_tests PRIVATE shader_recompiler_agc_driver libc)
+set_target_properties(agc_masked_select_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_masked_select_tests)
+
 add_test_executable(agc_vop1_control_decode_tests EXCLUDE_FROM_ALL tests/Vop1ControlDecode.cpp)
 target_link_libraries(agc_vop1_control_decode_tests PRIVATE shader_recompiler_agc_driver libc)
 set_target_properties(agc_vop1_control_decode_tests PROPERTIES CXX_EXTENSIONS OFF)
 configure_windows_unwind(agc_vop1_control_decode_tests)
+
+add_test_executable(agc_dcc_key_sharing_tests EXCLUDE_FROM_ALL tests/DccKeySharing.cpp)
+target_include_directories(agc_dcc_key_sharing_tests PRIVATE ${LIBS_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/core/shader/recompiler ${CMAKE_SOURCE_DIR}/3rdparty/Vulkan-Headers/include)
+target_link_libraries(agc_dcc_key_sharing_tests PRIVATE libc)
+set_target_properties(agc_dcc_key_sharing_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_dcc_key_sharing_tests)
+if(BUILD_TESTING)
+    set_target_properties(agc_dcc_key_sharing_tests PROPERTIES EXCLUDE_FROM_ALL OFF)
+    add_test(NAME agc_dcc_key_sharing COMMAND agc_dcc_key_sharing_tests)
+    if(WIN32)
+        set_tests_properties(agc_dcc_key_sharing PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
+add_test_executable(agc_display_buffer_dcc_tests EXCLUDE_FROM_ALL tests/DisplayBufferDcc.cpp)
+target_include_directories(agc_display_buffer_dcc_tests PRIVATE ${LIBS_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/core/shader/recompiler ${CMAKE_SOURCE_DIR}/3rdparty/Vulkan-Headers/include)
+target_link_libraries(agc_display_buffer_dcc_tests PRIVATE libSceAgcDriver libc)
+set_target_properties(agc_display_buffer_dcc_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_display_buffer_dcc_tests)
+if(BUILD_TESTING)
+    set_target_properties(agc_display_buffer_dcc_tests PROPERTIES EXCLUDE_FROM_ALL OFF)
+    add_test(NAME agc_display_buffer_dcc COMMAND agc_display_buffer_dcc_tests)
+    if(WIN32)
+        set_tests_properties(agc_display_buffer_dcc PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
+add_test_executable(agc_validate_program_tests EXCLUDE_FROM_ALL tests/ValidateProgram.cpp)
+target_link_libraries(agc_validate_program_tests PRIVATE shader_recompiler_agc_driver libc)
+set_target_properties(agc_validate_program_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_validate_program_tests)
 
 add_test_executable(agc_shader_disk_cache_tests EXCLUDE_FROM_ALL tests/ShaderDiskCache.cpp)
 target_include_directories(agc_shader_disk_cache_tests PRIVATE ${LIBS_INCLUDE_DIR})
@@ -313,6 +413,7 @@ add_test_executable(agc_driver_graphics_tests EXCLUDE_FROM_ALL
         tests/ColorTargetLayout.cpp
         tests/BdaResources.cpp
         tests/GuestAllocations.cpp
+        tests/LiveStack.cpp
         tests/TextureFormat.cpp
         tests/TextureTiling.cpp
         tests/GuestTextureResource.cpp
@@ -343,6 +444,8 @@ add_test_executable(agc_driver_graphics_tests EXCLUDE_FROM_ALL
         Graphics/src/Recorder.cpp
         Graphics/src/ShaderInputState.cpp
         ${agcTextureDetileShaderHeader}
+        ${agcMeshArgumentsShaderHeader}
+        ${agcSampleCounterShaderHeader}
         Execution/src/GuestMemory.cpp
         Execution/src/Pm4.cpp
 )
@@ -418,7 +521,7 @@ foreach(agcExecutionTestSource IN LISTS agcExecutionTestSources)
 endforeach()
 
 if(BUILD_TESTING)
-    foreach(agcTest IN ITEMS agc_driver_tests agc_shader_memory_tests agc_structurizer_tests agc_dpp_write_tests agc_vop1_control_decode_tests agc_shader_disk_cache_tests agc_shader_control_flow_tests agc_driver_flip_tests agc_driver_pm4_tests agc_driver_graphics_tests ${agcExecutionTests})
+    foreach(agcTest IN ITEMS agc_driver_tests agc_shader_memory_tests agc_structurizer_tests agc_spirv_module_tests agc_dpp_write_tests agc_masked_select_tests agc_vop1_control_decode_tests agc_validate_program_tests agc_shader_disk_cache_tests agc_shader_control_flow_tests agc_driver_flip_tests agc_driver_pm4_tests agc_driver_graphics_tests ${agcExecutionTests})
         string(REGEX REPLACE "_tests$" "" agcTestName "${agcTest}")
         set_target_properties(${agcTest} PROPERTIES EXCLUDE_FROM_ALL OFF)
         add_test(NAME ${agcTestName} COMMAND ${agcTest})
@@ -576,6 +679,15 @@ if(BUILD_TESTING)
         set_tests_properties(linear_display_buffer PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
+    add_test_executable(guest_agc_driver_resources_tests ${LIBS_INCLUDE_DIR}/tests/GuestAgcDriverResources.cpp)
+    target_include_directories(guest_agc_driver_resources_tests PRIVATE ${LIBS_INCLUDE_DIR})
+    target_link_libraries(guest_agc_driver_resources_tests PRIVATE libSceAgcDriver libc)
+    configure_windows_unwind(guest_agc_driver_resources_tests)
+    add_test(NAME guest_agc_driver_resources COMMAND guest_agc_driver_resources_tests)
+    if(WIN32)
+        set_tests_properties(guest_agc_driver_resources PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
     add_test_executable(guest_rendering_wait_tests ${LIBS_INCLUDE_DIR}/tests/GuestRenderingWait.cpp)
     target_include_directories(guest_rendering_wait_tests PRIVATE ${LIBS_INCLUDE_DIR})
     target_link_libraries(guest_rendering_wait_tests PRIVATE libSceAgcDriver libc)
@@ -599,6 +711,14 @@ if(BUILD_TESTING)
     add_test(NAME ray_tracing_miss COMMAND ray_tracing_miss_tests)
     if(WIN32)
         set_tests_properties(ray_tracing_miss PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+    add_test_executable(wave32_wide_subgroup_tests ${LIBS_INCLUDE_DIR}/tests/Wave32WideSubgroup.cpp)
+    target_link_libraries(wave32_wide_subgroup_tests PRIVATE shader_recompiler_agc_driver libc)
+    configure_windows_unwind(wave32_wide_subgroup_tests)
+    add_test(NAME wave32_wide_subgroup COMMAND wave32_wide_subgroup_tests)
+    if(WIN32)
+        set_tests_properties(wave32_wide_subgroup PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
     add_test_executable(vector_compare_i16_u16_tests ${LIBS_INCLUDE_DIR}/tests/VectorCompareI16U16.cpp)
@@ -633,6 +753,14 @@ if(BUILD_TESTING)
         set_tests_properties(vector_mad_legacy PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
+    add_test_executable(vector_fused_multiply_add_tests ${LIBS_INCLUDE_DIR}/tests/VectorFusedMultiplyAdd.cpp)
+    target_link_libraries(vector_fused_multiply_add_tests PRIVATE shader_recompiler_agc_driver libc)
+    configure_windows_unwind(vector_fused_multiply_add_tests)
+    add_test(NAME vector_fused_multiply_add COMMAND vector_fused_multiply_add_tests)
+    if(WIN32)
+        set_tests_properties(vector_fused_multiply_add PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
     add_test_executable(scalar_saveexec_tests ${LIBS_INCLUDE_DIR}/tests/ScalarSaveexec.cpp)
     target_link_libraries(scalar_saveexec_tests PRIVATE shader_recompiler_agc_driver libc)
     configure_windows_unwind(scalar_saveexec_tests)
@@ -649,12 +777,28 @@ if(BUILD_TESTING)
         set_tests_properties(scalar_bitcount64 PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
+    add_test_executable(scalar_scratch_load_tests ${LIBS_INCLUDE_DIR}/tests/ScalarScratchLoad.cpp)
+    target_link_libraries(scalar_scratch_load_tests PRIVATE shader_recompiler_agc_driver libc)
+    configure_windows_unwind(scalar_scratch_load_tests)
+    add_test(NAME scalar_scratch_load COMMAND scalar_scratch_load_tests)
+    if(WIN32)
+        set_tests_properties(scalar_scratch_load PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
     add_test_executable(image_sample_gather_tests ${LIBS_INCLUDE_DIR}/tests/ImageSampleGather.cpp)
     target_link_libraries(image_sample_gather_tests PRIVATE shader_recompiler_agc_driver libc)
     configure_windows_unwind(image_sample_gather_tests)
     add_test(NAME image_sample_gather COMMAND image_sample_gather_tests)
     if(WIN32)
         set_tests_properties(image_sample_gather PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+    add_test_executable(pixel_ancillary_tests ${LIBS_INCLUDE_DIR}/tests/PixelAncillary.cpp)
+    target_link_libraries(pixel_ancillary_tests PRIVATE shader_recompiler_agc_driver libc)
+    configure_windows_unwind(pixel_ancillary_tests)
+    add_test(NAME pixel_ancillary COMMAND pixel_ancillary_tests)
+    if(WIN32)
+        set_tests_properties(pixel_ancillary PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
     add_test_executable(guest_indexed_draw_tests ${LIBS_INCLUDE_DIR}/tests/GuestIndexedDraw.cpp)
@@ -677,6 +821,44 @@ if(BUILD_TESTING)
     add_test(NAME agc_rdna_truncated_modifier COMMAND agc_rdna_truncated_modifier_tests)
     if(WIN32)
         set_tests_properties(agc_rdna_truncated_modifier PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
+add_test_executable(agc_vop1_sdwa_move_decode_tests EXCLUDE_FROM_ALL tests/Vop1SdwaMoveDecode.cpp)
+target_link_libraries(agc_vop1_sdwa_move_decode_tests PRIVATE shader_recompiler_agc_driver libc)
+set_target_properties(agc_vop1_sdwa_move_decode_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_vop1_sdwa_move_decode_tests)
+if(BUILD_TESTING)
+    set_target_properties(agc_vop1_sdwa_move_decode_tests PROPERTIES EXCLUDE_FROM_ALL OFF)
+    add_test(NAME agc_vop1_sdwa_move_decode COMMAND agc_vop1_sdwa_move_decode_tests)
+    if(WIN32)
+        set_tests_properties(agc_vop1_sdwa_move_decode PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
+add_test_executable(agc_pixel_position_export_tests EXCLUDE_FROM_ALL tests/PixelPositionExport.cpp)
+target_link_libraries(agc_pixel_position_export_tests PRIVATE shader_recompiler_agc_driver libc)
+set_target_properties(agc_pixel_position_export_tests PROPERTIES CXX_EXTENSIONS OFF)
+configure_windows_unwind(agc_pixel_position_export_tests)
+if(BUILD_TESTING)
+    set_target_properties(agc_pixel_position_export_tests PROPERTIES EXCLUDE_FROM_ALL OFF)
+    add_test(NAME agc_pixel_position_export COMMAND agc_pixel_position_export_tests)
+    set_tests_properties(agc_pixel_position_export PROPERTIES ENVIRONMENT "ANYPS5_NO_SHADER_CACHE=1")
+    if(WIN32)
+        set_tests_properties(agc_pixel_position_export PROPERTIES ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
+    endif()
+endif()
+
+if(BUILD_TESTING)
+    add_test_executable(image_msaa_load_tests ${LIBS_INCLUDE_DIR}/tests/ImageMsaaLoad.cpp)
+    target_link_libraries(image_msaa_load_tests PRIVATE shader_recompiler_agc_driver libc)
+    configure_windows_unwind(image_msaa_load_tests)
+    add_test(NAME image_msaa_load COMMAND image_msaa_load_tests)
+    if(WIN32)
+        set_tests_properties(image_msaa_load PROPERTIES ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:libc>")
     endif()
 endif()

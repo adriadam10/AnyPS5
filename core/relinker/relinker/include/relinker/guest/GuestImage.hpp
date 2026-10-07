@@ -10,7 +10,9 @@
 
 namespace Relinker {
 
+inline constexpr char GuestSymbolSuffix[] = "#guest";
 inline constexpr char GuestModuleSuffix[] = ".guest.prx";
+inline constexpr std::uint16_t AbsoluteSection = 0xfff1;
 
 struct GuestSymbol {
     std::string Name;
@@ -19,6 +21,7 @@ struct GuestSymbol {
     std::uint16_t Section;
     std::uint64_t Value;
     std::uint64_t Size;
+    std::string Library;
 };
 
 struct GuestImage {

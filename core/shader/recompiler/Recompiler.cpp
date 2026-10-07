@@ -9,6 +9,7 @@
 #include "ShaderDiskCache.hpp"
 #include <list>
 #include <mutex>
+#include <new>
 #include <shared_mutex>
 #include <unordered_map>
 #include "ControlFlow/include/ControlFlow/GraphBuilder.hpp"
@@ -19,6 +20,7 @@
 #include "Optimization/include/Optimization/ConstantFolder.hpp"
 #include "Optimization/include/Optimization/DeadCodeEliminator.hpp"
 #include "Optimization/include/Optimization/DescriptorBindingBuilder.hpp"
+#include "Optimization/include/Optimization/MaskedSelectEliminator.hpp"
 #include "Optimization/include/Optimization/ReadLaneEliminator.hpp"
 #include "Optimization/include/Optimization/RequestMemoryView.hpp"
 #include "Optimization/include/Optimization/ResourceMaterializer.hpp"
@@ -155,6 +157,11 @@ IrProgram PrepareResourceProgram(const RecompileRequest& request) {
         deadCodeEliminator.Eliminate(program);
     }
 
+    constexpr MaskedSelectEliminator maskedSelectEliminator;
+    if (maskedSelectEliminator.Eliminate(program).removedSelects != 0u) {
+        deadCodeEliminator.Eliminate(program);
+    }
+
     constexpr SrtWalker srtWalker;
     srtWalker.BuildPlan(program);
     deadCodeEliminator.Eliminate(program);
@@ -164,6 +171,7 @@ IrProgram PrepareResourceProgram(const RecompileRequest& request) {
     resourceTracker.Track(program);
     deadCodeEliminator.Eliminate(program);
     dumpIr("resources");
+    program.Resources().srgbDecodeFormats = request.target.srgbDecodeFormats;
 
     return program;
 }
@@ -177,6 +185,13 @@ struct ResultMemoEntry {
     std::shared_ptr<const RecompileResult> result;
 };
 
+struct EmissionFailure {
+    std::uint64_t codeAddress;
+    BindingLayout layout;
+    ResourceSpecialization specialization;
+    std::exception_ptr failure;
+};
+
 struct SourceEntry {
     std::mutex mutex;
     // The code the entry was built for: the key carries only a hash of it, so a candidate entry is
@@ -188,7 +203,9 @@ struct SourceEntry {
     // rethrown: the front end ran every pass before failing, ~13 ms per dispatch of a shader the
     // title issues every frame (0x1048947300 at the intro video). APS5_NO_FAILURE_MEMO=1 rebuilds.
     std::exception_ptr planFailure;
+    std::unique_ptr<IrProgram> program;
     std::vector<std::shared_ptr<const CompiledVariant>> variants;
+    std::vector<EmissionFailure> emissionFailures;
     // The result memo, most recently used first, at most ResultMemoEntries (under mutex).
     std::list<ResultMemoEntry> memo;
     std::unordered_map<std::uint64_t, std::list<ResultMemoEntry>::iterator> memoIndex;
@@ -197,15 +214,14 @@ struct SourceEntry {
 namespace {
 
 struct ResourceProgram {
-    explicit ResourceProgram(const RecompileRequest& request) : program(PrepareResourceProgram(request)), plan(ResourceMaterializer{}.ExtractPlan(program)) {}
+    explicit ResourceProgram(const RecompileRequest& request) : program(std::make_unique<IrProgram>(PrepareResourceProgram(request))), plan(std::make_shared<const IrResourcePlan>(ResourceMaterializer{}.ExtractPlan(*program))) {}
 
-    IrProgram program;
-    IrResourcePlan plan;
+    std::unique_ptr<IrProgram> program;
+    std::shared_ptr<const IrResourcePlan> plan;
 };
 
 std::shared_ptr<const IrResourcePlan> makeResourcePlan(const RecompileRequest& request) {
-    const auto resource = std::make_shared<ResourceProgram>(request);
-    return std::shared_ptr<const IrResourcePlan>(resource, &resource->plan);
+    return ResourceProgram(request).plan;
 }
 
 struct SourceKeyHash {
@@ -218,6 +234,11 @@ struct SourceKeyHash {
         return hash;
     }
 };
+
+bool FailureMemo() {
+    static const bool memo = std::getenv("APS5_NO_FAILURE_MEMO") == nullptr;
+    return memo;
+}
 
 std::shared_ptr<SourceEntry> getSource(const RecompileRequest& request) {
     static std::shared_mutex mutex;
@@ -260,12 +281,13 @@ std::shared_ptr<SourceEntry> getSource(const RecompileRequest& request) {
     {
         std::lock_guard lock(source->mutex);
         if (source->plan == nullptr) {
-            static const bool memoFailures = std::getenv("APS5_NO_FAILURE_MEMO") == nullptr;
-            if (memoFailures && source->planFailure) std::rethrow_exception(source->planFailure);
+            if (FailureMemo() && source->planFailure) std::rethrow_exception(source->planFailure);
             try {
-                source->plan = makeResourcePlan(request);
+                ResourceProgram resource(request);
+                source->plan = std::move(resource.plan);
+                source->program = std::move(resource.program);
             } catch (...) {
-                if (memoFailures) source->planFailure = std::current_exception();
+                if (FailureMemo()) source->planFailure = std::current_exception();
                 throw;
             }
         }
@@ -282,7 +304,7 @@ std::uint64_t nextVariantId() {
     return variants.fetch_add(1, std::memory_order_relaxed) + 1;
 }
 
-CompiledVariant compileVariant(const RecompileRequest& request, IrProgram program, const ResourceSnapshot& resourceSnapshot, const ResourceSpecialization& resourceSpecialization) {
+CompiledVariant compileVariant(const RecompileRequest& request, IrProgram program, const ResourceSnapshot& resourceSnapshot, const ResourceSpecialization& resourceSpecialization, std::exception_ptr* emissionFailure = nullptr) {
     const auto inputInfo = RequestInputInfo(request);
     constexpr DeadCodeEliminator deadCodeEliminator;
     constexpr ResourceMaterializer resourceMaterializer;
@@ -312,14 +334,21 @@ CompiledVariant compileVariant(const RecompileRequest& request, IrProgram progra
     constexpr SpirvEmitter spirvEmitter;
     RecompileResult result;
     result.variantId = nextVariantId();
-    result.spirv = spirvEmitter.Emit(program, inputInfo, bindings, targetOptions);
-
+    try {
+        result.spirv = spirvEmitter.Emit(program, inputInfo, bindings, targetOptions);
 #if ANYPS5_ENABLE_SPIRV_TOOLS
-    result.spirv = ValidateAndOptimizeSpirv(result.spirv, request.target.vulkanVersion, request.target.spirvVersion, request.target.nonConstantImageOffsets);
+        result.spirv = ValidateAndOptimizeSpirv(result.spirv, request.target.vulkanVersion, request.target.spirvVersion, request.target.nonConstantImageOffsets);
 #endif
+    } catch (const std::bad_alloc&) {
+        throw;
+    } catch (...) {
+        if (emissionFailure != nullptr) *emissionFailure = std::current_exception();
+        throw;
+    }
 
     result.bdaAbiVersion = program.Info().usesDma ? request.target.bdaAbiVersion : 0u;
     result.memoryOffsetDword = bindings.layout.memoryOffsetDword;
+    result.hostSubgroupSize = HostSubgroupSize(request);
     result.vertexOffsetSgpr = program.Info().vertexOffsetSgpr;
     result.instanceOffsetSgpr = program.Info().instanceOffsetSgpr;
     result.vertexOffsetShared = program.Info().vertexOffsetShared;
@@ -374,6 +403,9 @@ std::shared_ptr<const CompiledVariant> findOrCompileVariant(SourceEntry& source,
             return candidate;
         }
     }
+    for (const auto& failure : source.emissionFailures) {
+        if (failure.codeAddress == request.shader.codeAddress && sameLayout(failure.layout, request.layout) && failure.specialization == specialization) std::rethrow_exception(failure.failure);
+    }
     cacheHit = false;
     const bool disk = ShaderDiskCache::Enabled() && !DebugProbeActive();
     std::vector<std::byte> diskKey;
@@ -389,10 +421,18 @@ std::shared_ptr<const CompiledVariant> findOrCompileVariant(SourceEntry& source,
         }
     }
     if (variant == nullptr) {
-        auto program = PrepareResourceProgram(request);
-        variant = std::make_shared<const CompiledVariant>(compileVariant(request, std::move(program), snapshot, specialization));
+        auto program = source.program != nullptr ? std::move(*source.program) : PrepareResourceProgram(request);
+        source.program.reset();
+        std::exception_ptr emissionFailure;
+        try {
+            variant = std::make_shared<const CompiledVariant>(compileVariant(request, std::move(program), snapshot, specialization, &emissionFailure));
+        } catch (...) {
+            if (emissionFailure != nullptr && FailureMemo()) source.emissionFailures.push_back({request.shader.codeAddress, request.layout, specialization, emissionFailure});
+            throw;
+        }
         if (disk) ShaderDiskCache::Store(std::move(diskKey), variant);
     }
+    source.program.reset();
     source.variants.push_back(variant);
     return variant;
 }

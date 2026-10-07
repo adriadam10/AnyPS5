@@ -13,6 +13,7 @@
 #include <map>
 #include <mutex>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -473,12 +474,23 @@ struct Allocations {
     std::mutex mutex;
     std::map<void*, Block> blocks;
     int textures = 0;
+    std::optional<int> textureLimit;
 };
 
 Allocations allocations;
 
+int ActiveTextureCountLocked() {
+    return static_cast<int>(std::count_if(allocations.blocks.begin(), allocations.blocks.end(), [](const auto& allocation) {
+        return allocation.second.texture;
+    }));
+}
+
 void* Allocate(std::uint32_t alignment, std::uint32_t size, bool texture) {
     const auto aligned = static_cast<std::align_val_t>(std::max<std::uint32_t>(alignment, 16));
+    {
+        std::lock_guard lock(allocations.mutex);
+        if (texture && allocations.textureLimit && ActiveTextureCountLocked() >= *allocations.textureLimit) return nullptr;
+    }
     void* memory = ::operator new(size, aligned);
     std::lock_guard lock(allocations.mutex);
     allocations.blocks[memory] = {texture, aligned};
@@ -507,6 +519,16 @@ bool IsAllocation(const void* memory, bool texture) {
     std::lock_guard lock(allocations.mutex);
     const auto found = allocations.blocks.find(const_cast<void*>(memory));
     return found != allocations.blocks.end() && found->second.texture == texture;
+}
+
+void SetTextureLimit(std::optional<int> limit) {
+    std::lock_guard lock(allocations.mutex);
+    allocations.textureLimit = limit;
+}
+
+int TextureCount() {
+    std::lock_guard lock(allocations.mutex);
+    return ActiveTextureCountLocked();
 }
 
 struct Events {
@@ -734,6 +756,13 @@ void TestPlayback() {
     Check(!sceAvPlayerGetVideoDataEx(player, &frame) && !sceAvPlayerGetAudioData(player, &sound), "data delivered while paused");
     Check(sceAvPlayerCurrentTime(player) == paused, "clock moved while paused");
     Check(sceAvPlayerIsActive(player), "inactive while paused");
+    Check(sceAvPlayerJumpToTime(player, 300) == 0, "jump while paused failed");
+    Check(WaitFor([&] { return events.Seen(EventWarning, JumpComplete); }), "jump completion missing while paused");
+    Check(WaitFor([&] { return sceAvPlayerGetVideoDataEx(player, &frame) != 0; }), "no frame at a jump while paused");
+    CheckVideoFrame(frame);
+    Check(frame.timestamp >= 300 && frame.timestamp <= 367, "paused jump landed at " + std::to_string(frame.timestamp));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    Check(!sceAvPlayerGetVideoDataEx(player, &frame) && !sceAvPlayerGetAudioData(player, &sound), "data delivered after the frame at a paused jump");
     events.Clear();
     Check(sceAvPlayerResume(player) == 0, "resume failed");
     Check(sceAvPlayerResume(player) == OperationFailed, "resume accepted while playing");
@@ -898,6 +927,28 @@ void TestWithoutAllocators() {
     Check(sceAvPlayerClose(handle) == 0, "close failed");
 }
 
+void TestOptionalVideoBuffersRespectMemoryLimit() {
+    const auto run = [](int textureLimit, int expectedTextures) {
+        SetTextureLimit(textureLimit);
+        AvPlayerInitData init = InitData(nullptr);
+        init.num_output_video_framebuffers = 2;
+        auto* player = sceAvPlayerInit(&init);
+        Check(player != nullptr, "init with limited texture memory failed");
+        Check(sceAvPlayerAddSource(player, "/app0/avplayer.mp4") == 0, "add source with limited texture memory failed");
+        Check(WaitFor([&] { return TextureCount() == expectedTextures && sceAvPlayerIsActive(player); }), "unexpected optional video buffer count");
+        AvPlayerFrameInfoEx frame{};
+        Check(WaitFor([&] { return sceAvPlayerGetVideoDataEx(player, &frame) != 0; }), "no frame with limited texture memory");
+        CheckVideoPicture(frame);
+        Check(sceAvPlayerClose(player) == 0, "close with limited texture memory failed");
+        Check(TextureCount() == 0, "limited texture allocations were not released");
+    };
+
+    run(2, 2);
+    run(4, 2);
+    run(6, 6);
+    SetTextureLimit(std::nullopt);
+}
+
 void TestFileReplacementAutoStart() {
     HostFile file;
     AvPlayerInitData init = InitData(nullptr);
@@ -951,6 +1002,7 @@ int main() {
         TestChangeStream();
         TestExtendedExports();
         TestWithoutAllocators();
+        TestOptionalVideoBuffersRespectMemoryLimit();
         TestFileReplacementAutoStart();
         TestHandedOutFramesStayIntact();
         std::puts("AvPlayer tests passed");

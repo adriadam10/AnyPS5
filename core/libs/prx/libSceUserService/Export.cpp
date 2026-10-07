@@ -48,11 +48,20 @@ int APS5_VABI sceUserServiceGetAccessibilityZoomEnabled(int user_id, int32_t* zo
  return USER_SERVICE_OK;
 }
 
+int APS5_VABI sceUserServiceGetAccessibilityZoomFollowFocus(int user_id, int32_t* zoom_follow_focus) {
+ if (zoom_follow_focus == nullptr || user_id != USER_SERVICE_INITIAL_USER_ID) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ *zoom_follow_focus = 0;
+ return USER_SERVICE_OK;
+}
+
 int APS5_VABI sceUserServiceGetAgeLevel(int user_id, uint32_t* age_level) {
- (void)user_id;
- (void)age_level;
- NotImplemented_nid_no_patch(__func__);
- return 0;
+ if (age_level == nullptr || user_id != USER_SERVICE_INITIAL_USER_ID) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ *age_level = 0;
+ return USER_SERVICE_OK;
 }
 
 // The initial user is reported as logging in once; afterwards there are no user events.
@@ -145,6 +154,41 @@ int APS5_VABI sceUserServiceGetPlatformPrivacyWs1(int32_t user_id, int32_t* valu
     if (!value) return USER_SERVICE_ERROR_INVALID_ARGUMENT;
     *value = 0;
     return 0;
+}
+
+int APS5_VABI sceUserServiceGetForegroundUser(int* user_id) {
+ if (user_id == nullptr) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ *user_id = USER_SERVICE_INITIAL_USER_ID;
+ return USER_SERVICE_OK;
+}
+
+int APS5_VABI sceUserServiceGetRegisteredUserIdList(UserServiceRegisteredUserIdList* user_id_list) {
+ if (user_id_list == nullptr) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ user_id_list->user_id[0] = USER_SERVICE_INITIAL_USER_ID;
+ for (int i = 1; i < 16; ++i) {
+  user_id_list->user_id[i] = USER_SERVICE_USER_ID_INVALID;
+ }
+ return USER_SERVICE_OK;
+}
+
+int APS5_VABI sceUserServiceGetUserColor(int user_id, int* color) {
+ if (color == nullptr || user_id != USER_SERVICE_INITIAL_USER_ID) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ *color = 0;
+ return USER_SERVICE_OK;
+}
+
+int APS5_VABI sceUserServiceGetNpAccountId(int user_id, uint64_t* account_id) {
+ if (account_id == nullptr || user_id != USER_SERVICE_INITIAL_USER_ID) {
+  return USER_SERVICE_ERROR_INVALID_ARGUMENT;
+ }
+ *account_id = 0;
+ return USER_SERVICE_OK;
 }
 
 }

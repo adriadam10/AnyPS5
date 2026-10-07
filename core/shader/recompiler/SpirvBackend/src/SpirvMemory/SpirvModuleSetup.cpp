@@ -10,49 +10,6 @@
 
 namespace ShaderRecompiler
 {
-namespace {
-
-[[noreturn]] void FailEmit(const std::string& reason) {
-    throw std::runtime_error("SPIR-V module emission failed: " + reason);
-}
-
-IrShaderStage StageOf(const SpirvEmitterState& state) {
-    return state.program.Resources().stage;
-}
-
-const ShaderVertexInputInfo& VertexInfo(const SpirvEmitterState& state) {
-    if (state.inputInfo.vertex == nullptr) {
-        FailEmit("vertex input info is missing");
-    }
-    return *state.inputInfo.vertex;
-}
-
-const ShaderPixelInputInfo& PixelInfo(const SpirvEmitterState& state) {
-    if (state.inputInfo.pixel == nullptr) {
-        FailEmit("pixel input info is missing");
-    }
-    return *state.inputInfo.pixel;
-}
-
-const ShaderWorkgroupInputInfo* ShaderWorkgroupInput(const SpirvEmitterState& state) {
-    switch (state.program.Resources().stage) {
-    case IrShaderStage::Compute:
-        if (state.inputInfo.compute == nullptr) {
-            FailEmit("compute input info is missing");
-        }
-        return state.inputInfo.compute;
-    case IrShaderStage::Mesh:
-        if (state.inputInfo.vertex == nullptr) {
-            FailEmit("vertex input info is missing");
-        }
-        return &state.inputInfo.vertex->mesh;
-    default:
-        return nullptr;
-    }
-}
-
-}
-
 
 void EmitModuleHeader(SpirvModule& module, const IrProgram& program, const BindingAllocationResult& bindings) {
     CheckBindings(program, bindings);
@@ -123,15 +80,30 @@ void DefineModule(SpirvEmitterState& state) {
         state.module.EmitCapability(spv::CapabilityInt64);
         state.module.EmitCapability(spv::CapabilityInt64Atomics);
     }
+    if (state.requirements.sharedInt64Atomics) {
+        state.module.EmitCapability(spv::CapabilityInt64);
+    }
+    if (state.requirements.imageInt64Atomics) {
+        if (std::find(state.supportedCapabilities.begin(), state.supportedCapabilities.end(), static_cast<std::uint32_t>(spv::CapabilityInt64ImageEXT)) == state.supportedCapabilities.end()) {
+            FailEmit("64-bit image atomics need VK_EXT_shader_image_atomic_int64");
+        }
+        state.module.EmitCapability(spv::CapabilityInt64);
+        state.module.EmitCapability(spv::CapabilityInt64Atomics);
+        state.module.EmitCapability(spv::CapabilityInt64ImageEXT);
+        state.module.EmitExtension("SPV_EXT_shader_image_int64");
+    }
     if (state.clipDistanceVariable != 0) {
         state.module.EmitCapability(spv::CapabilityClipDistance);
     }
     if (state.cullDistanceVariable != 0) {
         state.module.EmitCapability(spv::CapabilityCullDistance);
     }
-    if (state.layerVariable != 0 || InputVariableForKind(state, StageInputKind::Layer) != 0) {
+    if (state.layerVariable != 0) {
         state.module.RequireVersion(0x00010500u);
         state.module.EmitCapability(spv::CapabilityShaderLayer);
+    }
+    if (InputVariableForKind(state, StageInputKind::Layer) != 0) {
+        state.module.EmitCapability(spv::CapabilityGeometry);
     }
     if (state.viewportIndexVariable != 0) {
         state.module.RequireVersion(0x00010500u);
@@ -166,6 +138,13 @@ void DefineModule(SpirvEmitterState& state) {
     state.module.EmitCapability(spv::CapabilitySignedZeroInfNanPreserve);
     state.module.EmitExtension("SPV_KHR_float_controls");
     state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeSignedZeroInfNanPreserve, 32u);
+    if (state.requirements.float64) {
+        if (std::find(state.supportedCapabilities.begin(), state.supportedCapabilities.end(), static_cast<std::uint32_t>(spv::CapabilityFloat64)) == state.supportedCapabilities.end()) {
+            throw std::runtime_error("64-bit float instructions need the Float64 capability, which the device lacks");
+        }
+        state.module.EmitCapability(spv::CapabilityFloat64);
+        state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeSignedZeroInfNanPreserve, 64u);
+    }
     if (const auto* workgroup = ShaderWorkgroupInput(state)) {
         const std::uint32_t derivativeDefault = state.requirements.computeDerivatives ? 2u : 1u;
         std::uint32_t localX = workgroup->threadsNum[0] != 0u ? workgroup->threadsNum[0] : derivativeDefault;
@@ -187,6 +166,12 @@ void DefineModule(SpirvEmitterState& state) {
         state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeOriginUpperLeft);
         if (state.depthVariable != 0) {
             state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeDepthReplacing);
+            if (pixel.psConservativeZExport == ConservativeZExport::LessThanZ) {
+                state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeDepthLess);
+            }
+            if (pixel.psConservativeZExport == ConservativeZExport::GreaterThanZ) {
+                state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeDepthGreater);
+            }
         }
         if (pixel.psEarlyZ && !pixel.psPixelKillEnable && !pixel.psDepthExportEnable && !pixel.psSampleMaskExportEnable) {
             state.module.AddExecutionMode(state.mainFunc, spv::ExecutionModeEarlyFragmentTests);

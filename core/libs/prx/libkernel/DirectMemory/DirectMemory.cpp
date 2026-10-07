@@ -226,7 +226,12 @@ public:
 #ifdef _WIN32
         const auto size = static_cast<std::uint64_t>(bytes);
         section = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_EXECUTE_READWRITE, static_cast<DWORD>(size >> 32), static_cast<DWORD>(size), nullptr);
-        if (!section) throw std::system_error(static_cast<int>(GetLastError()), std::system_category(), "create direct memory backing");
+        if (!section) {
+            const auto error = static_cast<int>(GetLastError());
+            char message[96];
+            std::snprintf(message, sizeof(message), "create direct memory backing of 0x%llx bytes (%llu MiB)", static_cast<unsigned long long>(size), static_cast<unsigned long long>((size + 0xFFFFF) >> 20));
+            throw std::system_error(error, std::system_category(), message);
+        }
 #else
         file = memfd_create("direct memory", MFD_CLOEXEC);
         if (file < 0) throw std::system_error(errno, std::generic_category(), "create direct memory backing");
@@ -294,6 +299,27 @@ void EraseMappings(std::uintptr_t start, std::uintptr_t end) {
         it = g_directMappings.erase(it);
         if (base < start) g_directMappings.emplace(base, DirectMapping{start, mapping.phys, mapping.memoryType, mapping.backing});
         if (mapping.end > end) it = g_directMappings.emplace(end, DirectMapping{mapping.end, mapping.phys + end - base, mapping.memoryType, mapping.backing}).first;
+    }
+}
+
+void ErasePhysMappings(std::uint64_t first, std::uint64_t last) {
+    for (auto it = g_directMappings.begin(); it != g_directMappings.end();) {
+        const auto base = it->first;
+        const auto mapping = it->second;
+        const auto mappingLast = mapping.phys + (mapping.end - base);
+        if (mapping.phys >= last || mappingLast <= first) {
+            ++it;
+            continue;
+        }
+        it = g_directMappings.erase(it);
+        if (mapping.phys < first) {
+            const auto keep = first - mapping.phys;
+            g_directMappings.emplace(base, DirectMapping{base + keep, mapping.phys, mapping.memoryType, mapping.backing});
+        }
+        if (mappingLast > last) {
+            const auto skip = last - mapping.phys;
+            it = g_directMappings.emplace(base + skip, DirectMapping{mapping.end, last, mapping.memoryType, mapping.backing}).first;
+        }
     }
 }
 
@@ -397,6 +423,32 @@ void* MapPlaced(void* addr, size_t len, int prot, int flags, size_t alignment) {
     }
     if ((flags & GuestMapFixed) != 0) {
         ValidateRange(addr, len, alignment);
+#ifdef _WIN32
+        if ((flags & GuestMapNoOverwrite) != 0) {
+            const auto start = reinterpret_cast<std::uintptr_t>(addr);
+            auto cursor = start;
+            while (cursor - start < len) {
+                MEMORY_BASIC_INFORMATION info{};
+                if (VirtualQuery(reinterpret_cast<LPCVOID>(cursor), &info, sizeof(info)) != sizeof(info))
+                    throw std::system_error(EINVAL, std::generic_category(), "No-overwrite range query failed");
+                if (info.State == MEM_FREE) {
+                    cursor = reinterpret_cast<std::uintptr_t>(info.BaseAddress) + info.RegionSize;
+                    continue;
+                }
+                const auto regionEnd = reinterpret_cast<std::uintptr_t>(info.BaseAddress) + info.RegionSize;
+                if (regionEnd <= cursor) throw std::system_error(EINVAL, std::generic_category(), "No-overwrite range query failed");
+                const auto usedEnd = std::min(regionEnd, start + len);
+                const auto usedBegin = std::max(reinterpret_cast<std::uintptr_t>(info.BaseAddress), start);
+                if (info.State != MEM_RESERVE || !GuestArena::GuestArenaContains_nid_postfix(reinterpret_cast<void*>(usedBegin), usedEnd - usedBegin)) {
+                    char busy[160];
+                    std::snprintf(busy, sizeof(busy), "No-overwrite range %p+0x%zx is occupied (state=0x%lx prot=0x%lx)", addr, len,
+                        (unsigned long)info.State, (unsigned long)info.Protect);
+                    throw std::system_error(EEXIST, std::generic_category(), busy);
+                }
+                cursor = usedEnd;
+            }
+        }
+#endif
 #if defined(__linux__)
         const int placement = (flags & GuestMapNoOverwrite) != 0 ? MAP_FIXED_NOREPLACE : MAP_FIXED;
 #else
@@ -464,6 +516,31 @@ void EraseProtections(std::uintptr_t start, std::uintptr_t end) {
     }
 }
 
+std::mutex g_reservationLock;
+std::map<std::uintptr_t, std::uintptr_t> g_reservations;
+
+void EraseReservations(const void* addr, size_t len) {
+    const auto start = reinterpret_cast<std::uintptr_t>(addr);
+    const auto end = start + len;
+    std::lock_guard lock(g_reservationLock);
+    auto it = g_reservations.lower_bound(start);
+    if (it != g_reservations.begin() && std::prev(it)->second > start) --it;
+    while (it != g_reservations.end() && it->first < end) {
+        const auto rangeStart = it->first;
+        const auto rangeEnd = it->second;
+        it = g_reservations.erase(it);
+        if (rangeStart < start) g_reservations.emplace(rangeStart, start);
+        if (rangeEnd > end) it = g_reservations.emplace(end, rangeEnd).first;
+    }
+}
+
+void RecordReservation(const void* addr, size_t len) {
+    EraseReservations(addr, len);
+    const auto start = reinterpret_cast<std::uintptr_t>(addr);
+    std::lock_guard lock(g_reservationLock);
+    g_reservations.emplace(start, start + len);
+}
+
 void RecordProtection(const void* addr, size_t len, int prot) {
     const auto start = reinterpret_cast<std::uintptr_t>(addr);
     std::lock_guard lock(g_protectionLock);
@@ -488,6 +565,26 @@ void ValidateOutput(void** addr) {
 
 }
 
+bool Reserved(const void* addr, size_t len) {
+    const auto start = reinterpret_cast<std::uintptr_t>(addr);
+    const auto end = start + len;
+    std::lock_guard lock(g_reservationLock);
+    auto it = g_reservations.upper_bound(start);
+    if (it == g_reservations.begin()) return false;
+    auto cursor = start;
+    for (--it; it != g_reservations.end() && it->first <= cursor; ++it) {
+        cursor = std::max(cursor, it->second);
+        if (cursor >= end) return true;
+    }
+    return false;
+}
+
+bool FixedNoOverwriteConflict(const GuestAllocations::Mutation& mutation, void* addr, size_t len, int flags) {
+    constexpr int GuestMapNoOverwrite = 0x80;
+    if (addr == nullptr || (flags & GuestMapFixedFlag) == 0 || (flags & GuestMapNoOverwrite) == 0) return false;
+    return mutation.Overlaps(addr, len) && !Reserved(addr, len);
+}
+
 int DoMapDirect(void** addr, size_t len, int prot, int flags, int64_t physStart, size_t alignment) {
     ValidateOutput(addr);
     if (len == 0 || (len & (PS5_PAGE_SIZE - 1)) != 0) return SCE_KERNEL_ERROR_EINVAL;
@@ -495,7 +592,9 @@ int DoMapDirect(void** addr, size_t len, int prot, int flags, int64_t physStart,
         return SCE_KERNEL_ERROR_EINVAL;
     }
     GuestAllocations::Mutation mutation;
+    if (FixedNoOverwriteConflict(mutation, *addr, len, flags)) return SCE_KERNEL_ERROR_ENOMEM;
     if (RemapFixedIntoRegistered(mutation, *addr, len, prot, flags, physStart)) {
+        EraseReservations(*addr, len);
         RecordProtection(*addr, len, prot);
         return 0;
     }
@@ -512,6 +611,7 @@ int DoMapDirect(void** addr, size_t len, int prot, int flags, int64_t physStart,
         throw;
     }
     *addr = mapped;
+    EraseReservations(mapped, len);
     RecordProtection(mapped, len, prot);
     Trace("map direct %p+0x%zx phys=0x%llx prot=0x%x flags=0x%x align=0x%zx", mapped, len, static_cast<unsigned long long>(physStart), prot, flags, alignment);
     return 0;
@@ -521,7 +621,9 @@ int DoMapAnon(void** addr, size_t len, int prot, int flags) {
     ValidateOutput(addr);
     if (len == 0 || (len & (PS5_PAGE_SIZE - 1)) != 0) return SCE_KERNEL_ERROR_EINVAL;
     GuestAllocations::Mutation mutation;
+    if (FixedNoOverwriteConflict(mutation, *addr, len, flags)) return SCE_KERNEL_ERROR_ENOMEM;
     if (RemapFixedIntoRegistered(mutation, *addr, len, prot, flags)) {
+        EraseReservations(*addr, len);
         RecordProtection(*addr, len, prot);
         return 0;
     }
@@ -534,6 +636,7 @@ int DoMapAnon(void** addr, size_t len, int prot, int flags) {
         throw;
     }
     *addr = mapped;
+    EraseReservations(mapped, len);
     RecordProtection(mapped, len, prot);
     Trace("map anon %p+0x%zx prot=0x%x flags=0x%x", mapped, len, prot, flags);
     return 0;
@@ -568,6 +671,33 @@ int DoMprotect(const void* addr, size_t len, int prot) {
     return 0;
 }
 
+int DoMtypeprotect(const void* addr, size_t len, int type, int prot) {
+    const int result = DoMprotect(addr, len, prot);
+    const auto address = reinterpret_cast<std::uintptr_t>(addr);
+    constexpr auto pageMask = static_cast<std::uintptr_t>(PS5_PAGE_SIZE - 1);
+    const auto first = address & ~pageMask;
+    const auto end = (address + len + pageMask) & ~pageMask;
+    std::vector<std::pair<std::uint64_t, std::size_t>> physical;
+    {
+        std::lock_guard lock(g_directLock);
+        auto it = g_directMappings.lower_bound(first);
+        if (it != g_directMappings.begin() && std::prev(it)->second.end > first) --it;
+        while (it != g_directMappings.end() && it->first < end) {
+            const auto base = it->first;
+            const auto mapping = it->second;
+            it = g_directMappings.erase(it);
+            if (base < first) g_directMappings.emplace(base, DirectMapping{first, mapping.phys, mapping.memoryType, mapping.backing});
+            const auto low = std::max(base, first);
+            const auto high = std::min(mapping.end, end);
+            g_directMappings.emplace(low, DirectMapping{high, mapping.phys + low - base, type, mapping.backing});
+            physical.emplace_back(mapping.phys + low - base, high - low);
+            if (mapping.end > end) it = g_directMappings.emplace(end, DirectMapping{mapping.end, mapping.phys + end - base, mapping.memoryType, mapping.backing}).first;
+        }
+    }
+    for (const auto& [phys, bytes] : physical) DirectMemoryRetype(static_cast<int64_t>(phys), bytes, type);
+    return result;
+}
+
 int DoMunmap(void* addr, size_t len) {
     Trace("unmap %p+0x%zx", addr, len);
     if (len == 0 || (len & (PS5_PAGE_SIZE - 1)) != 0 || !addr) return SCE_KERNEL_ERROR_EINVAL;
@@ -584,6 +714,7 @@ int DoMunmap(void* addr, size_t len) {
         else munmap(pieceAddress, pieceBytes);
 #endif
     });
+    EraseReservations(addr, len);
     RecordProtection(addr, len, -1);
     return 0;
 }
@@ -593,6 +724,15 @@ int DoReserveVirtual(void** addr, size_t len, int flags, size_t alignment) {
     if (len == 0 || (len & (PS5_PAGE_SIZE - 1)) != 0) return SCE_KERNEL_ERROR_EINVAL;
     GuestAllocations::Mutation mutation;
     const bool fixed = *addr != nullptr && (flags & GuestMapFixedFlag) != 0;
+    if (fixed && mutation.Covers(*addr, len)) {
+        constexpr int GuestMapNoOverwrite = 0x80;
+        if ((flags & GuestMapNoOverwrite) == 0 && RemapFixedIntoRegistered(mutation, *addr, len, 0, GuestMapFixedFlag)) {
+            RecordProtection(*addr, len, -1);
+            RecordReservation(*addr, len);
+            return 0;
+        }
+        mutation.RequireAvailable(*addr, len);
+    }
     if (fixed) mutation.RequireAvailable(*addr, len);
     constexpr int GuestMapNoCoalesce = 0x400000;
     void* mapped = MapAligned(fixed ? *addr : nullptr, len, PROT_NONE, fixed ? GuestMapFixedFlag | (flags & GuestMapNoCoalesce) : 0, alignment);
@@ -603,6 +743,7 @@ int DoReserveVirtual(void** addr, size_t len, int flags, size_t alignment) {
         throw;
     }
     *addr = mapped;
+    RecordReservation(mapped, len);
     Trace("reserve %p+0x%zx flags=0x%x align=0x%zx", mapped, len, flags, alignment);
     return 0;
 }
@@ -625,7 +766,19 @@ void ForgetDirectMemory(int64_t start, size_t len) {
     std::lock_guard lock(g_directLock);
     ValidatePhysicalRange(first, len);
     g_physPages.erase(g_physPages.lower_bound(first), g_physPages.lower_bound(first + len));
+    ErasePhysMappings(first, first + len);
     Trace("release physical 0x%llx+0x%zx", static_cast<unsigned long long>(first), len);
+}
+
+bool GuestReservation(std::uintptr_t addr, std::uintptr_t* start, std::uintptr_t* end) {
+    std::lock_guard lock(g_reservationLock);
+    const auto next = g_reservations.upper_bound(addr);
+    if (next == g_reservations.begin()) return false;
+    const auto containing = std::prev(next);
+    if (addr >= containing->second) return false;
+    *start = containing->first;
+    *end = containing->second;
+    return true;
 }
 
 bool GuestProtection(uintptr_t addr, int* prot) {

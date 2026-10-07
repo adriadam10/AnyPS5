@@ -140,6 +140,7 @@ private:
         append(key, value.sampleMaskExportEnable);
         append(key, value.earlyZ);
         append(key, value.executeOnNoop);
+        append(key, value.conservativeZExport);
         append(key, value.targetOutputMode);
         append(key, value.targetExportMapping);
     }
@@ -200,6 +201,7 @@ private:
         append(key, value.mesh);
         append(key, value.tessellation);
         append(key, value.nonConstantImageOffsets);
+        append(key, value.srgbDecodeFormats);
     }
 };
 

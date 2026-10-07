@@ -47,13 +47,13 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteWindows(const Relinker::GuestI
                 if (addend != 0 || (symbolIndex != 0 && (symbol.Info & 15) != 6)) throw Domain::RelinkerException("Invalid guest TLS module relocation", target);
                 if (symbolIndex != 0 && symbol.Section == 0) {
                     image.WritePointer(target, 0);
-                    runtime.Imports.push_back({symbol.Name, rva, 0, 16});
+                    runtime.Imports.push_back({symbol.Name, rva, 0, 16, symbol.Library});
                 } else tlsModules.emplace_back(target, rva);
             } else if (type == 17) {
                 if (symbolIndex != 0 && (symbol.Info & 15) != 6) throw Domain::RelinkerException("Invalid guest TLS offset relocation", target);
                 if (symbolIndex != 0 && symbol.Section == 0) {
                     image.WritePointer(target, 0);
-                    runtime.Imports.push_back({symbol.Name, rva, addend, 17});
+                    runtime.Imports.push_back({symbol.Name, rva, addend, 17, symbol.Library});
                 } else image.WritePointer(target, symbol.Value + addend);
             } else if (type == 18) {
                 const auto tls = std::find_if(guest.Headers.begin(), guest.Headers.end(), [](const auto& header) { return header.Type == 7; });
@@ -62,14 +62,15 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteWindows(const Relinker::GuestI
                 image.WritePointer(target, symbol.Value + addend - size);
             } else if (type == 1 || type == 6 || type == 7) {
                 if (symbolIndex == 0 || (type != 1 && addend != 0) || (symbol.Info & 15) == 6) throw Domain::RelinkerException("Invalid guest symbol relocation", target);
-                if (symbol.Section != 0) {
+                if (symbol.Section == Relinker::AbsoluteSection) image.WritePointer(target, symbol.Value + addend);
+                else if (symbol.Section != 0) {
                     if (symbol.Section >= 0xff00) throw Domain::RelinkerException("Unsupported special guest symbol section", target);
                     image.WritePointer(target, image.GetRelocatedAddress(symbol.Value) + addend);
                     relocations.push_back(rva);
                 } else {
                     if (symbol.Name.empty()) throw Domain::RelinkerException("Empty guest import", target);
                     image.WritePointer(target, 0);
-                    runtime.Imports.push_back({symbol.Name, rva, addend});
+                    runtime.Imports.push_back({symbol.Name, rva, addend, 1, symbol.Library});
                 }
             } else throw Domain::RelinkerException("Unsupported Windows guest relocation " + std::to_string(type), target);
         }
@@ -80,7 +81,12 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteWindows(const Relinker::GuestI
     auto nextRva = image.GetEndRva();
     std::array<PeDirectory, 16> directories{};
     std::uint32_t tlsIndex = 0;
-    directories[9] = WindowsTlsBuilder().Build(guest.Bytes, guest.Headers, image, sections, relocations, nextRva, &tlsIndex);
+    try {
+        directories[9] = WindowsTlsBuilder().Build(guest.Bytes, guest.Headers, image, sections, relocations, nextRva, &tlsIndex);
+    } catch (Domain::RelinkerException& error) {
+        error.InputPath = guest.SourcePath.string();
+        throw;
+    }
     WindowsTrampolineBuilder().Build(guest.Trampolines, image, sections, nextRva);
     for (const auto& [target, rva] : tlsModules) {
         if (tlsIndex == 0) throw Domain::RelinkerException("Guest TLS relocation has no TLS block", target);
@@ -104,7 +110,7 @@ std::vector<std::uint8_t> GuestModuleWriter::WriteWindows(const Relinker::GuestI
     std::map<std::string, std::uint32_t> exports;
     PeSection tlsExports{".tlsrefs", nextRva, SectionRead | 0x40u, {}};
     for (const auto& symbol : guest.Symbols) {
-        if (symbol.Section == 0 || (symbol.Info >> 4) == 0 || symbol.Visibility == 1 || symbol.Visibility == 2) continue;
+        if (symbol.Section == 0 || symbol.Section == Relinker::AbsoluteSection || (symbol.Info >> 4) == 0 || symbol.Visibility == 1 || symbol.Visibility == 2) continue;
         if (symbol.Section >= 0xff00) throw Domain::RelinkerException("Unsupported guest export section: " + symbol.Name);
         std::uint32_t rva = 0;
         if ((symbol.Info & 15) == 6) {

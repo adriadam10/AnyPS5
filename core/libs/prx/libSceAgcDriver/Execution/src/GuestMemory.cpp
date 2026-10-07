@@ -1,4 +1,6 @@
+#include "prx/libSceAgcDriver/Execution/include/ProfileOutput.hpp"
 #include "prx/libSceAgcDriver/Execution/include/GuestMemory.hpp"
+#include "ThreadOwned.hpp"
 #include "prx/libc/include/GuestAllocations.hpp"
 #include "prx/libc/include/GuestArena.hpp"
 #include "prx/libc/include/GuestWriteWatch.hpp"
@@ -16,6 +18,7 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
+#include <unordered_map>
 #include <vector>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -24,6 +27,7 @@
 #include <windows.h>
 #else
 #include <fstream>
+#include <pthread.h>
 #include <sstream>
 #endif
 
@@ -167,8 +171,8 @@ struct ThreadMemoryCounters {
 
 MemoryCounter& CounterFor(MemoryCounterKind kind) {
     if (SharedMemoryCounters()) return Profile().shared.counters[kind];
-    thread_local ThreadMemoryCounters thread;
-    return thread.counters.counters[kind];
+    thread_local ThreadMemoryCounters* thread = nullptr;
+    return ShaderRecompiler::ThreadOwned(thread).counters.counters[kind];
 }
 
 // Every thread's counters, the retired and the shared ones summed: calls, bytes, nanoseconds per kind.
@@ -289,30 +293,30 @@ public:
         auto last = state.lastReport.load();
         if (nowMs - last < 10000 || !state.lastReport.compare_exchange_strong(last, nowMs)) return;
         const auto totals = FoldMemoryCounters();
-        std::fprintf(stderr, "[guestmem]");
+        AgcDriver::ProfilePrint_nid_no_patch("[guestmem]");
         for (std::size_t i = 0; i < MemoryCounterCount; ++i) {
-            std::fprintf(stderr, " %s %llu calls %.0f MiB %.1f s", MemoryCounterNames[i], static_cast<unsigned long long>(totals[i][0]), totals[i][1] / 1048576.0, totals[i][2] / 1e9);
+            AgcDriver::ProfilePrint_nid_no_patch(" %s %llu calls %.0f MiB %.1f s", MemoryCounterNames[i], static_cast<unsigned long long>(totals[i][0]), totals[i][1] / 1048576.0, totals[i][2] / 1e9);
         }
-        std::fprintf(stderr, " collect-memo hits %llu, collect epochs %llu", static_cast<unsigned long long>(collectMemoHits.load()), static_cast<unsigned long long>(collectEpochBumps.load()));
-        std::fprintf(stderr, " collect-dirty %llu tracker waits %llu / %llu", static_cast<unsigned long long>(collectDirty.load()), static_cast<unsigned long long>(trackerWaits.load()), static_cast<unsigned long long>(trackerAcquisitions.load()));
-        std::fprintf(stderr, " | arena 0x%llx+0x%llx image 0x%llx+0x%llx forgets %llu (%.0f MiB)", static_cast<unsigned long long>(PagesBase()), static_cast<unsigned long long>(PagesSize()), static_cast<unsigned long long>(ImagePagesBase()), static_cast<unsigned long long>(ImagePagesSize()), static_cast<unsigned long long>(forgetCalls.load()), forgetBytes.load() / 1048576.0);
+        AgcDriver::ProfilePrint_nid_no_patch(" collect-memo hits %llu, collect epochs %llu", static_cast<unsigned long long>(collectMemoHits.load()), static_cast<unsigned long long>(collectEpochBumps.load()));
+        AgcDriver::ProfilePrint_nid_no_patch(" collect-dirty %llu tracker waits %llu / %llu", static_cast<unsigned long long>(collectDirty.load()), static_cast<unsigned long long>(trackerWaits.load()), static_cast<unsigned long long>(trackerAcquisitions.load()));
+        AgcDriver::ProfilePrint_nid_no_patch(" | arena 0x%llx+0x%llx image 0x%llx+0x%llx forgets %llu (%.0f MiB)", static_cast<unsigned long long>(PagesBase()), static_cast<unsigned long long>(PagesSize()), static_cast<unsigned long long>(ImagePagesBase()), static_cast<unsigned long long>(ImagePagesSize()), static_cast<unsigned long long>(forgetCalls.load()), forgetBytes.load() / 1048576.0);
         {
             std::lock_guard lock(state.callersMutex);
-            std::fprintf(stderr, " | read callers:");
+            AgcDriver::ProfilePrint_nid_no_patch(" | read callers:");
             for (const auto& [caller, count] : state.callers) {
-                if (count != 0) std::fprintf(stderr, " +0x%llx=%llu", caller, static_cast<unsigned long long>(count));
+                if (count != 0) AgcDriver::ProfilePrint_nid_no_patch(" +0x%llx=%llu", caller, static_cast<unsigned long long>(count));
             }
-            std::fprintf(stderr, " | write callers:");
+            AgcDriver::ProfilePrint_nid_no_patch(" | write callers:");
             for (const auto& [caller, count] : state.writeCallers) {
-                if (count != 0) std::fprintf(stderr, " +0x%llx=%llu", caller, static_cast<unsigned long long>(count));
+                if (count != 0) AgcDriver::ProfilePrint_nid_no_patch(" +0x%llx=%llu", caller, static_cast<unsigned long long>(count));
             }
         }
-        std::fprintf(stderr, " | read sites:");
+        AgcDriver::ProfilePrint_nid_no_patch(" | read sites:");
         for (std::size_t site = 0; site < static_cast<std::size_t>(ReadSite::Count); ++site) {
             const auto count = readSiteSamples[site].load(std::memory_order_relaxed);
-            if (count != 0) std::fprintf(stderr, " %s=%llu", ReadSiteName(static_cast<ReadSite>(site)), static_cast<unsigned long long>(count));
+            if (count != 0) AgcDriver::ProfilePrint_nid_no_patch(" %s=%llu", ReadSiteName(static_cast<ReadSite>(site)), static_cast<unsigned long long>(count));
         }
-        std::fprintf(stderr, "\n");
+        AgcDriver::ProfilePrint_nid_no_patch("\n");
     }
 private:
     MemoryCounterKind kind;
@@ -542,7 +546,14 @@ bool describePages(std::uintptr_t address, std::size_t bytes, Emit&& emit) {
             char separator = 0;
             std::string permissions;
             if (!(fields >> std::hex >> first >> separator >> last >> permissions) || separator != '-' || first >= last || permissions.size() < 2) return false;
-            if (last <= cursor || first > cursor) continue;
+            if (last <= cursor) continue;
+            if (first > cursor) {
+                const auto gapEnd = std::min(end, first);
+                if (!emit(PageRun{cursor, gapEnd, false, false})) return true;
+                cursor = gapEnd;
+                found = true;
+                break;
+            }
             const auto next = std::min(end, last);
             if (!emit(PageRun{cursor, next, permissions[0] == 'r', permissions[0] == 'r' && permissions[1] == 'w'})) return true;
             cursor = next;
@@ -558,10 +569,41 @@ bool describePages(std::uintptr_t address, std::size_t bytes, Emit&& emit) {
     return true;
 }
 
+bool onOwnLiveStack(std::uintptr_t address, std::size_t bytes) {
+    struct Bounds {
+        std::uintptr_t low = 0;
+        std::uintptr_t high = 0;
+        Bounds() {
+#ifdef _WIN32
+            ULONG_PTR lowLimit = 0;
+            ULONG_PTR highLimit = 0;
+            GetCurrentThreadStackLimits(&lowLimit, &highLimit);
+            low = static_cast<std::uintptr_t>(lowLimit);
+            high = static_cast<std::uintptr_t>(highLimit);
+#else
+            pthread_attr_t attributes;
+            if (pthread_getattr_np(pthread_self(), &attributes) != 0) return;
+            void* base = nullptr;
+            std::size_t size = 0;
+            if (pthread_attr_getstack(&attributes, &base, &size) == 0 && base != nullptr) {
+                low = reinterpret_cast<std::uintptr_t>(base);
+                high = low + size;
+            }
+            pthread_attr_destroy(&attributes);
+#endif
+        }
+    };
+    thread_local const Bounds bounds;
+    const volatile unsigned char marker = 0;
+    const auto frame = reinterpret_cast<std::uintptr_t>(&marker);
+    return bounds.high != 0 && frame >= bounds.low && frame < bounds.high && address >= frame && address < bounds.high && bytes <= bounds.high - address;
+}
+
 // Checks that [address, address + bytes) is mapped with read (and, if asked, write) access. Returns
 // an empty string when it is, otherwise why it is not.
 std::string verify(std::uintptr_t address, std::size_t bytes, bool writable) {
     const TimedAccess timed(CounterVerify, bytes);
+    if (onOwnLiveStack(address, bytes)) return {};
     std::string reason;
     const bool queried = describePages(address, bytes, [&](const PageRun& run) {
         if (!run.readable) {
@@ -706,6 +748,44 @@ struct WriteTracker {
 #else
         return address / WriteBlockBytes;
 #endif
+    }
+
+    std::uint64_t blockBegin(std::uint64_t block) const {
+#ifdef _WIN32
+        return base + block * WriteBlockBytes;
+#else
+        return block * WriteBlockBytes;
+#endif
+    }
+
+    struct DriverPiece {
+        std::uint32_t generation = 0;
+        std::uint32_t begin = 0;
+        std::uint32_t end = 0;
+    };
+    struct DriverPieces {
+        std::uint32_t whole = 0;
+        std::uint32_t dropped = 0;
+        std::uint32_t next = 0;
+        std::array<DriverPiece, 4> pieces{};
+    };
+    std::unordered_map<std::uint64_t, DriverPieces> driverPieces;
+
+    void noteDriverStore(std::uint64_t block, std::uint64_t address, std::uint64_t end, std::uint32_t stampGeneration) {
+        const auto begin = blockBegin(block);
+        const auto from = static_cast<std::uint32_t>(std::max(address, begin) - begin);
+        const auto to = static_cast<std::uint32_t>(std::min<std::uint64_t>(end, begin + WriteBlockBytes) - begin);
+        if (from == 0 && to == WriteBlockBytes) {
+            if (const auto found = driverPieces.find(block); found != driverPieces.end()) {
+                found->second = DriverPieces{};
+                found->second.whole = stampGeneration;
+            }
+            return;
+        }
+        auto& entry = driverPieces[block];
+        auto& slot = entry.pieces[entry.next++ % entry.pieces.size()];
+        entry.dropped = std::max(entry.dropped, slot.generation);
+        slot = {stampGeneration, from, to};
     }
 
     std::uint32_t stampOf(std::uint64_t block) const {
@@ -1015,6 +1095,40 @@ bool UnchangedSinceAll(std::span<const UnchangedQuery> queries) {
     return true;
 }
 
+std::uint64_t storeOwn(std::uint64_t address, std::size_t bytes, const std::function<std::pair<std::uint64_t, std::uint64_t>()>& store) {
+    if (bytes == 0) return 0;
+    const auto stampStored = [](WriteTracker& tracker, std::pair<std::uint64_t, std::uint64_t> stored) -> std::uint64_t {
+        if (stored.second <= stored.first || !tracker.watched || !tracker.covers(stored.first, static_cast<std::size_t>(stored.second - stored.first))) return 0;
+        ++tracker.generation;
+        for (auto block = tracker.blockOf(stored.first); block <= tracker.blockOf(stored.second - 1); ++block) {
+            tracker.stamp(block, tracker.generation, StampKind::Driver);
+            tracker.noteDriverStore(block, stored.first, stored.second, tracker.generation);
+        }
+        return tracker.generation;
+    };
+    auto& tracker = Tracker();
+    const auto lock = lockTracker(tracker);
+    tracker.initialize();
+    if (!tracker.watched || bytes > std::numeric_limits<std::uint64_t>::max() - address || !tracker.covers(address, bytes)) return stampStored(tracker, store());
+    constexpr std::uint64_t page = 4096;
+    const auto first = address & ~(page - 1);
+    const auto stop = (address + bytes + page - 1) & ~(page - 1);
+#ifdef _WIN32
+    if (GuestArena::GuestArenaHostRegionOverlaps_nid_postfix(first, static_cast<std::size_t>(stop - first))) return stampStored(tracker, store());
+#endif
+    if (!walkWrites(tracker, first, stop, StampKind::Cpu)) return stampStored(tracker, store());
+    const auto stored = store();
+    walkWrites(tracker, first, stop, StampKind::Driver);
+    return stampStored(tracker, stored);
+}
+
+std::uint64_t StoreOwnBytes(std::uint64_t address, std::size_t bytes, const std::function<void()>& store) {
+    return storeOwn(address, bytes, [&] {
+        store();
+        return std::pair<std::uint64_t, std::uint64_t>{address, address + bytes};
+    });
+}
+
 std::uint64_t MarkWritten(std::uint64_t address, std::size_t bytes) {
     auto& tracker = Tracker();
     const auto lock = lockTracker(tracker);
@@ -1023,8 +1137,36 @@ std::uint64_t MarkWritten(std::uint64_t address, std::size_t bytes) {
     const auto first = tracker.blockOf(address);
     const auto last = tracker.blockOf(address + bytes - 1);
     ++tracker.generation;
-    for (auto block = first; block <= last; ++block) tracker.stamp(block, tracker.generation, StampKind::Driver);
+    for (auto block = first; block <= last; ++block) {
+        tracker.stamp(block, tracker.generation, StampKind::Driver);
+        tracker.noteDriverStore(block, address, address + bytes, tracker.generation);
+    }
     return tracker.generation;
+}
+
+bool StoredOver(std::uint64_t address, std::size_t bytes, std::uint64_t generation) {
+    auto& tracker = Tracker();
+    const auto lock = lockTracker(tracker);
+    tracker.initialize();
+    if (!tracker.watched || generation == 0 || bytes == 0 || !tracker.covers(address, bytes)) return true;
+    const auto end = address + bytes;
+    const auto first = tracker.blockOf(address);
+    const auto last = tracker.blockOf(end - 1);
+    for (auto block = first; block <= last; ++block) {
+        if (tracker.writtenStampOf(block) <= generation) continue;
+        if (tracker.cpuStampOf(block) > generation) return true;
+        const auto found = tracker.driverPieces.find(block);
+        if (found == tracker.driverPieces.end()) return true;
+        const auto& entry = found->second;
+        if (entry.whole > generation || entry.dropped > generation) return true;
+        const auto begin = tracker.blockBegin(block);
+        const auto from = std::max(address, begin) - begin;
+        const auto to = std::min<std::uint64_t>(end, begin + WriteBlockBytes) - begin;
+        for (const auto& piece : entry.pieces) {
+            if (piece.generation > generation && piece.begin < to && from < piece.end) return true;
+        }
+    }
+    return false;
 }
 
 std::uint64_t TrackerGeneration() {
@@ -1363,8 +1505,8 @@ void GpuMutexType::lock() {
         char counts[160];
         std::snprintf(counts, sizeof(counts), "; lock() %llu / try %llu / try failed %llu; locked GPU waits %llu / %.0f ms", static_cast<unsigned long long>(stats.acquisitions), static_cast<unsigned long long>(stats.tries), static_cast<unsigned long long>(stats.triesFailed), static_cast<unsigned long long>(stats.lockedGpuWaits), stats.lockedGpuWaitMs);
         holds += counts;
-        if (stats.tag == 0xffffffffu) std::fprintf(stderr, "[lock] %s waited %.0f ms for the GPU mutex in %llu of %llu acquisitions (%.0f s); by site (acquisitions/waits, waited):%s%s\n", stats.holderColumn == PresenterColumn ? "presenter" : "untagged thread", stats.waitedMs, static_cast<unsigned long long>(stats.waits), static_cast<unsigned long long>(stats.acquisitions), interval, sites.c_str(), holds.c_str());
-        else std::fprintf(stderr, "[lock] queue 0x%x waited %.0f ms for the GPU mutex in %llu of %llu acquisitions (%.0f s); by site (acquisitions/waits, waited):%s%s\n", stats.tag, stats.waitedMs, static_cast<unsigned long long>(stats.waits), static_cast<unsigned long long>(stats.acquisitions), interval, sites.c_str(), holds.c_str());
+        if (stats.tag == 0xffffffffu) AgcDriver::ProfilePrint_nid_no_patch("[lock] %s waited %.0f ms for the GPU mutex in %llu of %llu acquisitions (%.0f s); by site (acquisitions/waits, waited):%s%s\n", stats.holderColumn == PresenterColumn ? "presenter" : "untagged thread", stats.waitedMs, static_cast<unsigned long long>(stats.waits), static_cast<unsigned long long>(stats.acquisitions), interval, sites.c_str(), holds.c_str());
+        else AgcDriver::ProfilePrint_nid_no_patch("[lock] queue 0x%x waited %.0f ms for the GPU mutex in %llu of %llu acquisitions (%.0f s); by site (acquisitions/waits, waited):%s%s\n", stats.tag, stats.waitedMs, static_cast<unsigned long long>(stats.waits), static_cast<unsigned long long>(stats.acquisitions), interval, sites.c_str(), holds.c_str());
         stats.waitedMs = 0;
         stats.waits = 0;
         stats.acquisitions = 0;
@@ -1535,23 +1677,25 @@ void WriteChanged(std::uint64_t address, std::span<const std::byte> current, std
         const auto length = std::min(block, size - at);
         return std::memcmp(current.data() + at, original.data() + at, length) != 0;
     };
-    std::size_t firstChanged = size;
-    std::size_t lastChanged = 0;
-    for (std::size_t at = 0; at < size; at += block) {
-        if (!differs(at)) continue;
-        const auto blockEnd = std::min(at + block, size);
-        for (std::size_t run = at; run < blockEnd;) {
-            if (current[run] == original[run]) { ++run; continue; }
-            auto runEnd = run + 1;
-            while (runEnd < blockEnd && current[runEnd] != original[runEnd]) ++runEnd;
-            std::memcpy(destination + run, current.data() + run, runEnd - run);
-            firstChanged = std::min(firstChanged, run);
-            lastChanged = std::max(lastChanged, runEnd);
-            run = runEnd;
-        }
-    }
     // Stamped like a GPU write: a collect memoized for this packet would not see the page fault.
-    if (firstChanged < lastChanged) MarkWritten(address + firstChanged, lastChanged - firstChanged);
+    storeOwn(address, size, [&] {
+        std::size_t firstChanged = size;
+        std::size_t lastChanged = 0;
+        for (std::size_t at = 0; at < size; at += block) {
+            if (!differs(at)) continue;
+            const auto blockEnd = std::min(at + block, size);
+            for (std::size_t run = at; run < blockEnd;) {
+                if (current[run] == original[run]) { ++run; continue; }
+                auto runEnd = run + 1;
+                while (runEnd < blockEnd && current[runEnd] != original[runEnd]) ++runEnd;
+                std::memcpy(destination + run, current.data() + run, runEnd - run);
+                firstChanged = std::min(firstChanged, run);
+                lastChanged = std::max(lastChanged, runEnd);
+                run = runEnd;
+            }
+        }
+        return firstChanged < lastChanged ? std::pair<std::uint64_t, std::uint64_t>{address + firstChanged, address + lastChanged} : std::pair<std::uint64_t, std::uint64_t>{0, 0};
+    });
 }
 
 void Write(std::uint64_t address, std::span<const std::byte> source, std::size_t alignment) {
@@ -1563,9 +1707,8 @@ void Write(std::uint64_t address, std::span<const std::byte> source, std::size_t
     CountWriteCaller(__builtin_return_address(0));
     auto* destination = reinterpret_cast<void*>(address);
     CheckRange(destination, source.size(), alignment, true);
-    std::memcpy(destination, source.data(), source.size());
     // Stamped like a GPU write: a collect memoized for this packet would not see the page fault.
-    MarkWritten(address, source.size());
+    StoreOwnBytes(address, source.size(), [&] { std::memcpy(destination, source.data(), source.size()); });
 }
 
 }

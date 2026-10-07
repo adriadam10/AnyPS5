@@ -1,6 +1,7 @@
 #ifndef CORE_SHADER_RECOMPILIER_INTERMEDIATEREPRESENTATION_INCLUDE_INTERMEDIATEREPRESENTATION_IRMETADATA_RESOURCEPLAN_HPP
 #define CORE_SHADER_RECOMPILIER_INTERMEDIATEREPRESENTATION_INCLUDE_INTERMEDIATEREPRESENTATION_IRMETADATA_RESOURCEPLAN_HPP
 
+#include "IntermediateRepresentation/IrBlock.hpp"
 #include "IntermediateRepresentation/IrValue.hpp"
 #include "IntermediateRepresentation/IrMetadata/ControlFlowInfo.hpp"
 #include "IntermediateRepresentation/IrMetadata/DescriptorBinding.hpp"
@@ -54,7 +55,9 @@ struct IrResourcePlan {
     std::uint64_t shaderHash = 0;
     std::uint32_t userDataBase = 0;
     std::uint32_t userDataCount = 64;
+    std::uint32_t srgbDecodeFormats = 0;
     std::vector<std::unique_ptr<IrValue>> valueStorage;
+    std::vector<std::unique_ptr<IrBlock>> blockStorage;
     std::vector<MemoryInfo> memoryInfo;
     std::vector<DescriptorSource> descriptorSources;
     std::vector<ResourceBlock> controlFlow;

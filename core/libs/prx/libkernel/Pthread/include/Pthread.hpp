@@ -17,6 +17,7 @@ enum class MutexType : std::uint32_t {
     ErrorCheck = 1,
     Recursive = 2,
     Normal = 3,
+    Adaptive = 4,
 };
 
 struct PthreadMutexattrPrivate {
@@ -30,7 +31,7 @@ struct PthreadMutexPrivate {
     std::atomic<std::thread::id> _owner;
     int _count;
 
-    PthreadMutexPrivate() : _type(MutexType::Normal), _owner(std::thread::id{}), _count(0) {}
+    PthreadMutexPrivate() : _type(MutexType::ErrorCheck), _owner(std::thread::id{}), _count(0) {}
 };
 
 struct PthreadRwlockattrPrivate {
@@ -97,5 +98,7 @@ struct PthreadPrivate {
 
     PthreadPrivate() : _finished(false), _retval(nullptr), _detached(false), _adopted(false) {}
 };
+
+bool GuestThreadStack(std::uintptr_t address, std::uintptr_t* start, std::uintptr_t* end);
 
 #endif

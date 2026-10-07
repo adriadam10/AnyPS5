@@ -74,4 +74,14 @@ int APS5_VABI sceNpCommerceShowPsStoreIcon(int pos) {
  return 0;
 }
 
+int APS5_VABI sceNpCommerceSetPsStoreIconLayout(int layout) {
+ (void)layout;
+ return 0;
+}
+
+int APS5_VABI sceNpCommerceDialogOpen2(void) {
+    NotImplemented_nid_no_patch(__func__);
+    return 0;
+}
+
 }

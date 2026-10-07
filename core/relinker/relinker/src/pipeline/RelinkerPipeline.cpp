@@ -1,11 +1,15 @@
 #include <relinker/pipeline/RelinkerPipeline.hpp>
+#include <elfpatcher/general/ElfConstants.hpp>
 #include <relinker/analysis/ValidationPolicy.hpp>
 #include <relinker/analysis/UnusedNidFilter/PltCompactor.hpp>
 #include <sstream>
 #include <iostream>
 #include <cstring>
+#include <domain/ImportModule.hpp>
 
 namespace Relinker {
+
+using namespace Elfpatcher;
 
 RelinkerPipeline::RelinkerPipeline(std::shared_ptr<IElfReader> elfReader, std::shared_ptr<ISyscallScanner> syscallScanner, std::shared_ptr<ICallSiteResolver> callSiteResolver, std::shared_ptr<IValidationPolicy> validationPolicy, std::shared_ptr<ISysVDynamicSectionBuilder> dynamicSectionBuilder, std::shared_ptr<IUnusedNidFilter> unusedNidFilter, std::uint32_t unusedFilterLevel)
     : _elfReader(std::move(elfReader))
@@ -38,14 +42,20 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
 
     std::vector<std::uint8_t> textSection;
     VirtualAddress textVAddr = 0;
+    std::vector<std::pair<std::vector<std::uint8_t>, VirtualAddress>> executableSegments;
     VirtualAddress gotVAddr = 0;
     ByteCount gotSize = 0;
 
     for (const auto& ph : programHeaders) {
         if (ph.Type == PT_LOAD && (ph.Flags & PF_X) != 0) {
-            textSection = _elfReader->ReadSegment(ph);
-            textVAddr = ph.MappedAddress;
-            break;
+            auto segment = _elfReader->ReadSegment(ph);
+            if (!segment.empty()) {
+                if (textSection.empty()) {
+                    textSection = segment;
+                    textVAddr = ph.MappedAddress;
+                }
+                executableSegments.emplace_back(std::move(segment), ph.MappedAddress);
+            }
         }
     }
 
@@ -109,7 +119,7 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
     }
 
     const FileByteOffset dynStrTabOffset = readAsOffset(DT_OS_STRTAB, DT_STRTAB, "DT_STRTAB");
-    requireExactlyOneOf(DT_OS_STRSZ, DT_STRSZ, "DT_STRSZ");
+    const ByteCount dynStrTabSize = readAsSize(DT_OS_STRSZ, DT_STRSZ, "DT_STRSZ");
 
     const FileByteOffset dynSymTabOffset = readAsOffset(DT_OS_SYMTAB, DT_SYMTAB, "DT_SYMTAB");
     constexpr std::size_t symEntSize = 24;
@@ -147,11 +157,19 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
 
     const std::vector<std::uint8_t>& raw = _elfReader->GetRawBytes();
 
+    if (dynStrTabOffset > raw.size() || dynStrTabSize > raw.size() - dynStrTabOffset)
+        throw RelinkerException("Dynamic string table is out of bounds", dynStrTabOffset);
+
     auto readCStr = [&](FileByteOffset strOff) -> std::string {
+        if (strOff >= dynStrTabSize)
+            throw RelinkerException("Dynamic string offset is outside DT_STRSZ", strOff);
         std::string result;
         FileByteOffset pos = dynStrTabOffset + strOff;
-        while (pos < raw.size() && raw[pos] != 0)
+        const FileByteOffset end = dynStrTabOffset + dynStrTabSize;
+        while (pos < end && raw[pos] != 0)
             result.push_back(static_cast<char>(raw[pos++]));
+        if (pos == end)
+            throw RelinkerException("Dynamic string is not NUL-terminated within DT_STRSZ", strOff);
         return result;
     };
 
@@ -159,6 +177,12 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
         snd = readCStr(fst);
         neededLibraries.push_back(snd);
         if (policy) policy->RegisterLibraryImport(snd);
+    }
+
+    std::map<std::uint64_t, std::string> importModules;
+    for (const auto& tag : dynTags) {
+        if (tag.Tag == 0x61000045 && !importModules.emplace(tag.Value >> 48, readCStr(tag.Value & 0xffffffffu)).second)
+            throw RelinkerException("Duplicate import module ID");
     }
 
     auto extractRela = [&](const FileByteOffset relaOff, const ByteCount relaSize) {
@@ -189,7 +213,8 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
             std::uint32_t nameOff = 0;
             std::memcpy(&nameOff, raw.data() + symOff, 4);
 
-            nidRefs.push_back({readCStr(nameOff), {}, relType, pos, rOffset, rAddend});
+            const auto name = readCStr(nameOff);
+            nidRefs.push_back({name, Domain::ImportModule(name, importModules, neededLibraries), relType, pos, rOffset, rAddend});
         }
     };
 
@@ -199,18 +224,18 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
     for (const auto& ref : nidRefs)
         _validationPolicy->ValidateRelocationTypeSupported(ref.RelocationTypeValue, ref.RelocationTableOffset);
 
-    if (!textSection.empty())
-        _syscallScanner->ScanCodeSectionForSyscalls(textSection, textVAddr, textSection.size());
+    for (const auto& [segment, segmentVAddr] : executableSegments)
+        _syscallScanner->ScanCodeSectionForSyscalls(segment, segmentVAddr, segment.size());
 
     _validationPolicy->ValidateSyscallAbsence();
-
-    static constexpr std::uint32_t R_X86_64_JUMP_SLOT = 7;
 
     const std::size_t originalNidCount = nidRefs.size();
     const auto originalNidRefs = nidRefs;
     std::cout << "NID input: " << originalNidCount << " references\n";
 
     if (unusedFilterLevel == 2) {
+        if (executableSegments.size() > 1)
+            throw RelinkerException("Strict NID filtering does not support multiple executable segments");
         nidRefs = _unusedNidFilter->Filter(nidRefs, raw, textSection, textVAddr);
         if (nidRefs.size() > originalNidCount) throw RelinkerException("Strict NID filter increased the reference count");
         std::cout << "Strict filtering total: " << originalNidCount << " -> " << nidRefs.size() << "; filtered=" << originalNidCount - nidRefs.size() << "\n";
@@ -226,9 +251,14 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
 
         std::cout << "PLT preservation: " << pltRefs.size() << " -> " << pltRefs.size() << "; filtered=0\n";
         const std::size_t nonPltCount = nonPltRefs.size();
-        nonPltRefs = _unusedNidFilter->Filter(nonPltRefs, raw, textSection, textVAddr);
-        if (nonPltRefs.size() > nonPltCount) throw RelinkerException("Unused NID filter increased the reference count");
-        std::cout << "CFG/GOT filtering: " << nonPltCount << " -> " << nonPltRefs.size() << "; filtered=" << nonPltCount - nonPltRefs.size() << "\n";
+        if (executableSegments.size() > 1) {
+            std::cout << "CFG/GOT filtering skipped: multiple executable segments are not modeled; "
+                      << nonPltCount << " -> " << nonPltCount << "; filtered=0\n";
+        } else {
+            nonPltRefs = _unusedNidFilter->Filter(nonPltRefs, raw, textSection, textVAddr);
+            if (nonPltRefs.size() > nonPltCount) throw RelinkerException("Unused NID filter increased the reference count");
+            std::cout << "CFG/GOT filtering: " << nonPltCount << " -> " << nonPltRefs.size() << "; filtered=" << nonPltCount - nonPltRefs.size() << "\n";
+        }
 
         nidRefs.clear();
         nidRefs.reserve(pltRefs.size() + nonPltRefs.size());
@@ -251,8 +281,6 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
         pltCount = compacted.SlotCount;
     }
     auto dynSection = _dynamicSectionBuilder->BuildDynamicSection(dynamicRefs, neededLibraries, dynJmpRelOffset, pltCount);
-
-    static constexpr std::uint32_t R_X86_64_RELATIVE = 8;
 
     auto appendRela = [&](std::vector<std::uint8_t>& buf, std::uint64_t offset, std::uint64_t info, std::int64_t addend) {
         std::size_t pos = buf.size();
@@ -283,12 +311,6 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
     std::vector<CallRegistryEntry> entries;
     entries.reserve(nidRefs.size());
     for (const auto& ref : nidRefs) {
-        std::vector<FileByteOffset> callSites;
-        bool callSitesResolved = false;
-        if (!textSection.empty() && gotSize > 0) {
-            callSites = _callSiteResolver->ResolveCallSites(textSection, textVAddr, ref.RelocationAddress, 8);
-            callSitesResolved = !callSites.empty();
-        }
         CallRegistryEntry entry;
         entry.Nid = ref.Nid;
         entry.Library = ref.Library;
@@ -296,9 +318,16 @@ RelinkResult RelinkerPipeline::Relink(const std::vector<std::uint8_t>& sourceElf
         entry.RelocationOffset = ref.RelocationTableOffset;
         entry.TargetSection = ".got";
         entry.TargetOffset = ref.RelocationAddress;
-        entry.CallSites = callSites;
-        entry.CallSitesResolved = callSitesResolved;
+        entry.CallSitesResolved = false;
         entries.push_back(std::move(entry));
+    }
+
+    for (const auto& [segment, segmentVAddr] : executableSegments) {
+        for (auto& entry : entries) {
+            auto segmentSites = _callSiteResolver->ResolveCallSites(segment, segmentVAddr, entry.TargetOffset, 8);
+            entry.CallSites.insert(entry.CallSites.end(), segmentSites.begin(), segmentSites.end());
+            entry.CallSitesResolved = !entry.CallSites.empty();
+        }
     }
 
     return RelinkResult{std::move(entries), std::move(programHeaders), std::move(dynSection), gotVAddr, std::move(patches)};

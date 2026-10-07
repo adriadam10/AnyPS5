@@ -51,6 +51,8 @@ set_target_properties(libc PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY ${UNPATCHED_DIR}
         LIBRARY_OUTPUT_DIRECTORY ${UNPATCHED_DIR}
         ARCHIVE_OUTPUT_DIRECTORY ${IMPLIB_DIR}
+        BUILD_WITH_INSTALL_RPATH ON
+        INSTALL_RPATH "$ORIGIN"
 )
 
 set(LIBC_UNPATCHED ${UNPATCHED_DIR}/libc.prx)
@@ -101,6 +103,8 @@ foreach(LIB_DIR ${LIBS_DIRS})
                 RUNTIME_OUTPUT_DIRECTORY ${UNPATCHED_DIR}
                 LIBRARY_OUTPUT_DIRECTORY ${UNPATCHED_DIR}
                 ARCHIVE_OUTPUT_DIRECTORY ${IMPLIB_DIR}
+                BUILD_WITH_INSTALL_RPATH ON
+                INSTALL_RPATH "$ORIGIN"
         )
 
         set(UNPATCHED_FILE ${UNPATCHED_DIR}/${LIB_NAME}.prx)
@@ -118,20 +122,21 @@ foreach(LIB_DIR ${LIBS_DIRS})
     endif()
 endforeach()
 
-set(LIBCOHTML_PATCHED ${PATCHED_DIR}/libcohtml.prx)
-set(LIBCOHTML_PROSPERO_PATCHED ${PATCHED_DIR}/libcohtml.Prospero.prx)
-add_custom_command(
-        OUTPUT ${LIBCOHTML_PROSPERO_PATCHED}
-        COMMAND ${CMAKE_COMMAND} -E copy "${LIBCOHTML_PATCHED}" "${LIBCOHTML_PROSPERO_PATCHED}"
-        DEPENDS ${LIBCOHTML_PATCHED}
-        VERBATIM
-)
-add_custom_target(libcohtml_prospero DEPENDS ${LIBCOHTML_PROSPERO_PATCHED})
-list(APPEND PATCHED_OUTPUTS ${LIBCOHTML_PROSPERO_PATCHED})
-
 add_custom_target(libs DEPENDS ${PATCHED_OUTPUTS})
 
 if(BUILD_TESTING)
+    add_test_executable(savedata_memory_metadata_tests tests/SaveDataMemoryMetadata.cpp)
+    target_include_directories(savedata_memory_metadata_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(savedata_memory_metadata_tests PRIVATE libSceSaveData.native)
+    configure_windows_unwind(savedata_memory_metadata_tests)
+    add_test(NAME savedata_memory_metadata COMMAND savedata_memory_metadata_tests)
+    if(MINGW)
+        target_compile_options(savedata_memory_metadata_tests PRIVATE -fasynchronous-unwind-tables)
+    endif()
+    if(WIN32)
+        set_tests_properties(savedata_memory_metadata PROPERTIES
+            ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:$<TARGET_FILE_DIR:libSceSaveData.native>")
+    endif()
     add_test_executable(savedata_memory_growth_tests tests/SaveDataMemoryGrowth.cpp)
     target_include_directories(savedata_memory_growth_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     target_link_libraries(savedata_memory_growth_tests PRIVATE libSceSaveData.native)

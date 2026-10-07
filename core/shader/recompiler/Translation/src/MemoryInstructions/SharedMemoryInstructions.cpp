@@ -42,6 +42,29 @@ bool TranslationContext::dsAtomic(const RdnaInstruction& inst, IrOpcode opcode, 
     return true;
 }
 
+bool TranslationContext::dsWrxchg2(const RdnaInstruction& inst) {
+    MemoryInfo first = sharedMemoryInfoFromInstruction(inst);
+    const std::uint32_t width = first.dataDwords / 2u;
+    if (width == 2u && inst.gds) {
+        throw std::runtime_error("64-bit GDS atomics are not supported");
+    }
+    first.dataDwords = width;
+    first.componentCount = width;
+    MemoryInfo second = first;
+    second.offset = first.secondaryOffset;
+    const IrU32 address = readU32(inst.source0);
+    const auto data = [&](const RdnaOperand& operand) { return width == 2u ? &readU64(operand).Value() : &readU32(operand).Value(); };
+    IrValue* firstValue = data(inst.source1);
+    IrValue* secondValue = data(inst.source2);
+    IrValue& active = ir.GetExec();
+    const IrOpcode opcode = width == 2u ? IrOpcode::SharedAtomicSwap64 : IrOpcode::SharedAtomicSwap32;
+    IrValue& firstOld = ir.Emit(opcode, IrOpcodeType(opcode), {&address.Value(), firstValue, &active}, addMemoryInfo(first, inst.programCounter));
+    IrValue& secondOld = ir.Emit(opcode, IrOpcodeType(opcode), {&address.Value(), secondValue, &active}, addMemoryInfo(second, inst.programCounter));
+    writeOperand(inst.destination, &firstOld);
+    writeOperand(offsetOperand(inst.destination, width), &secondOld);
+    return true;
+}
+
 IrValue* TranslationContext::loadSharedU32(std::uint32_t width, IrU32 address, const MemoryInfo& memory, std::uint32_t pc) {
     IrOpcode opcode;
     switch (width) {
@@ -182,6 +205,25 @@ bool TranslationContext::dsAtomic2(const RdnaInstruction& inst, IrOpcode opcode,
     return true;
 }
 
+bool TranslationContext::dsAtomic64(const RdnaInstruction& inst, IrOpcode opcode, bool returnsValue) {
+    if (inst.gds) {
+        throw std::runtime_error("64-bit GDS atomics are not supported");
+    }
+    const MemoryInfo memory = sharedMemoryInfoFromInstruction(inst);
+    const IrU32 address = readU32(inst.source0);
+    const IrU64 data0 = readU64(inst.source1);
+    IrValue& active = ir.GetExec();
+    IrValue* old;
+    if (IrOpcodeOperandCount(opcode) == 4u) {
+        const IrU64 data1 = readU64(inst.source2);
+        old = &ir.Emit(opcode, IrOpcodeType(opcode), {&address.Value(), &data0.Value(), &data1.Value(), &active}, addMemoryInfo(memory, inst.programCounter));
+    } else {
+        old = &ir.Emit(opcode, IrOpcodeType(opcode), {&address.Value(), &data0.Value(), &active}, addMemoryInfo(memory, inst.programCounter));
+    }
+    if (returnsValue) writeOperand(inst.destination, old);
+    return true;
+}
+
 bool TranslationContext::dsAppendConsume(const RdnaInstruction& inst, IrOpcode opcode) {
     const MemoryInfo memory = sharedMemoryInfoFromInstruction(inst);
     const IrU32 address = readU32(makeM0Operand());
@@ -224,6 +266,16 @@ bool TranslationContext::dsBpermuteB32(const RdnaInstruction& inst) {
     const IrU32 value = readU32(inst.source1);
     IrValue& active = ir.GetExec();
     IrValue& result = ir.Emit(IrOpcode::BpermuteU32, IrOpcodeType(IrOpcode::BpermuteU32), {&value.Value(), &address, &active});
+    writeOperand(inst.destination, &result);
+    return true;
+}
+
+bool TranslationContext::dsPermuteB32(const RdnaInstruction& inst) {
+    const IrU32 index = readU32(inst.source0);
+    IrValue& address = ir.IAdd(index.Value(), ir.Constant(inst.memoryOffset));
+    const IrU32 value = readU32(inst.source1);
+    IrValue& active = ir.GetExec();
+    IrValue& result = ir.Emit(IrOpcode::PermuteU32, IrOpcodeType(IrOpcode::PermuteU32), {&value.Value(), &address, &active});
     writeOperand(inst.destination, &result);
     return true;
 }

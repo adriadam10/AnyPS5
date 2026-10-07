@@ -5,6 +5,7 @@
 #include "SpirvBackend/SpirvEmitter.hpp"
 #include "BdaAbi.hpp"
 #include <array>
+#include <functional>
 
 namespace ShaderRecompiler {
 
@@ -12,6 +13,8 @@ std::uint32_t BdaConstant(SpirvEmitterState& state, std::uint64_t value);
 std::uint32_t BdaWord(SpirvEmitterState& state, std::uint32_t variable, std::uint32_t index);
 std::uint32_t BdaLoadWord(SpirvEmitterState& state, std::uint32_t index);
 std::uint32_t BdaLoadAddress(SpirvEmitterState& state, std::uint32_t index);
+void DefineBdaFaultFunction(SpirvEmitterState& state);
+void DefineBdaDwordReadFunctions(SpirvEmitterState& state);
 void RecordBdaFault(SpirvEmitterState& state, std::uint32_t address, std::uint32_t bytes, std::uint32_t instruction, BdaAbi::FaultReason reason);
 void ReturnBdaFailureIf(SpirvEmitterState& state, std::uint32_t condition, std::uint32_t address, std::uint32_t bytes, std::uint32_t instruction, BdaAbi::FaultReason reason);
 void ValidateBdaTarget(const IrProgram& program, const SpirvTargetOptions& target);
@@ -21,6 +24,8 @@ bool BdaInvocationsMayStop(const IrProgram& program);
 void StopBdaInvocationIf(SpirvEmitterState& state, std::uint32_t condition);
 std::uint32_t EmitBdaRead(SpirvValueEmitContext& ctx, const IrValue& inst, std::uint32_t address, std::uint32_t bits);
 void EmitBdaWrite(SpirvValueEmitContext& ctx, const IrValue& inst, std::uint32_t address, std::uint32_t value);
+void EmitBdaStore(SpirvValueEmitContext& ctx, const IrValue& inst, std::uint32_t address, std::uint32_t value, std::uint32_t bits);
+std::uint32_t EmitBdaAtomic(SpirvValueEmitContext& ctx, const IrValue& inst, std::uint32_t address, std::uint32_t bytes, const std::function<std::uint32_t(std::uint32_t)>& operation);
 // Reads the dwords of a 1-4 dword load at address + offset that the program extracts, with one
 // table lookup for the whole span; the per-byte lookups of EmitBdaRead remain the fallback (and
 // the only path under APS5_BDA_BYTE_READS=1). Dwords the program never extracts are neither read

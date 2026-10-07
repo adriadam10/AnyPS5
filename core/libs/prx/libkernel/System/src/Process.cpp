@@ -290,10 +290,8 @@ int APS5_VABI getrusage_nid_postfix(int who, GuestResourceUsage* usage) {
     usage->ru_nvcsw = 0;
     usage->ru_nivcsw = 0;
 #else
-    if (who == 1)
-        throw std::invalid_argument("getrusage: RUSAGE_THREAD is not supported on this platform");
     struct rusage native{};
-    if (::getrusage(RUSAGE_SELF, &native) != 0)
+    if (::getrusage(who == 0 ? RUSAGE_SELF : RUSAGE_THREAD, &native) != 0)
         throw std::system_error(errno, std::generic_category(), "getrusage: getrusage failed");
     usage->ru_utime.tv_sec = static_cast<std::int64_t>(native.ru_utime.tv_sec);
     usage->ru_utime.tv_usec = static_cast<std::int64_t>(native.ru_utime.tv_usec);
@@ -318,6 +316,14 @@ int APS5_VABI getrusage_nid_postfix(int who, GuestResourceUsage* usage) {
 }
 
 int APS5_VABI sceKernelIsTrinityMode(void) {
+    return 0;
+}
+
+int APS5_VABI sceKernelGetOperationMode(int* mode, int* submode) {
+    if (!mode || !submode)
+        throw std::invalid_argument("sceKernelGetOperationMode: null output");
+    *mode = 0;
+    *submode = 0;
     return 0;
 }
 

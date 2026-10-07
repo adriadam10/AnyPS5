@@ -42,11 +42,6 @@ int APS5_VABI sceFontCreateWords() {
     return 0;
 }
 
-int APS5_VABI sceFontCreateWritingLine() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI sceFontDefineAttribute() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
@@ -67,27 +62,12 @@ int APS5_VABI sceFontDestroyWords() {
     return 0;
 }
 
-int APS5_VABI sceFontDestroyWritingLine() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI sceFontDettachDeviceCacheBuffer() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
 
 int APS5_VABI sceFontGetAttribute() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontGetCharGlyphCode() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontGetFontGlyphsCount() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
@@ -102,32 +82,12 @@ int APS5_VABI sceFontGetFontMetrics() {
     return 0;
 }
 
-int APS5_VABI sceFontGetFontResolution() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
 int APS5_VABI sceFontGetFontStyleInformation() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
 
 int APS5_VABI sceFontGetGlyphExpandBufferState() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontGetPixelResolution() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontGetRenderScaledKerning() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontGetResolutionDpi() {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
@@ -447,27 +407,12 @@ int APS5_VABI sceFontWordsFindWordCharacters() {
     return 0;
 }
 
-int APS5_VABI sceFontWritingLineClear() {
+int APS5_VABI sceFontGraphicsDrawupFillTextureImageObject(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }
 
-int APS5_VABI sceFontWritingLineGetOrderingSpace() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontWritingLineGetRenderMetrics() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontWritingLineRefersRenderStep() {
-    NotImplemented_nid_no_patch(__func__);
-    return 0;
-}
-
-int APS5_VABI sceFontWritingLineWritesOrder() {
+int APS5_VABI sceFontGraphicsDrawupFillTexturePatternObject(void) {
     NotImplemented_nid_no_patch(__func__);
     return 0;
 }

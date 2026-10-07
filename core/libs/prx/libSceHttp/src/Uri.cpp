@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <cctype>
+#include <charconv>
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
@@ -18,6 +20,7 @@ constexpr uint32_t URI_BUILD_WITH_USERNAME = 0x10;
 constexpr uint32_t URI_BUILD_WITH_PASSWORD = 0x20;
 constexpr uint32_t URI_BUILD_WITH_QUERY = 0x40;
 constexpr uint32_t URI_BUILD_WITH_FRAGMENT = 0x80;
+constexpr size_t URI_MAX_LENGTH = 0x3FFF;
 
 struct UriParts {
     bool opaque = false;
@@ -71,14 +74,23 @@ std::string removeDotSegments(std::string_view input) {
     return output;
 }
 
-int parseUri(std::string_view uri, UriParts& parts) {
+size_t schemeLength(std::string_view uri) {
     size_t schemeEnd = 0;
     if (!uri.empty() && std::isalpha(static_cast<unsigned char>(uri[0]))) {
         schemeEnd = 1;
         while (schemeEnd < uri.size() && (std::isalnum(static_cast<unsigned char>(uri[schemeEnd])) || uri[schemeEnd] == '+'
             || uri[schemeEnd] == '-' || uri[schemeEnd] == '.')) ++schemeEnd;
     }
-    if (schemeEnd > 0 && schemeEnd < uri.size() && uri[schemeEnd] == ':') {
+    return schemeEnd > 0 && schemeEnd < uri.size() && uri[schemeEnd] == ':' ? schemeEnd : 0;
+}
+
+bool isOpaque(std::string_view uri) {
+    const size_t schemeEnd = schemeLength(uri);
+    return !uri.substr(schemeEnd == 0 ? 0 : schemeEnd + 1).starts_with("//");
+}
+
+int parseUri(std::string_view uri, UriParts& parts) {
+    if (const size_t schemeEnd = schemeLength(uri); schemeEnd != 0) {
         parts.scheme = uri.substr(0, schemeEnd);
         uri.remove_prefix(schemeEnd + 1);
     }
@@ -139,6 +151,13 @@ int parseUri(std::string_view uri, UriParts& parts) {
     return 0;
 }
 
+size_t poolSize(const UriParts& parts) {
+    const std::string_view fields[] = {parts.scheme, parts.username, parts.password, parts.hostname, parts.path, parts.query, parts.fragment};
+    size_t size = 0;
+    for (const std::string_view field : fields) size += field.size() + 1;
+    return size;
+}
+
 int copyOut(const std::string& value, char* out, size_t* require, size_t prepare) {
     if (require) *require = value.size() + 1;
     if (!out) return 0;
@@ -197,6 +216,70 @@ int APS5_VABI sceHttpUriEscape(char* out, size_t* require, size_t prepare, const
     return copyOut(escaped, out, require, prepare);
 }
 
+int APS5_VABI sceHttpUriUnescape(char* out, size_t* require, size_t prepare, const char* in) {
+    if (!in) return ERROR_INVALID_VALUE;
+
+    const std::string_view input(in);
+    std::string decoded;
+    for (size_t i = 0; i < input.size(); ++i) {
+        if (input[i] == '%' && input.size() - i >= 3) {
+            unsigned int value = 0;
+            const auto result = std::from_chars(input.data() + i + 1, input.data() + i + 3, value, 16);
+            if (result.ec == std::errc{} && result.ptr == input.data() + i + 3) {
+                decoded.push_back(static_cast<char>(value));
+                i += 2;
+                continue;
+            }
+        }
+        decoded.push_back(input[i]);
+    }
+    return copyOut(decoded, out, require, prepare);
+}
+
+int APS5_VABI sceHttpUriMerge(char* merged_url, const char* url, const char* relative_uri, size_t* require, size_t prepare, uint32_t option) {
+    if (option != 0 || !url || !relative_uri) return ERROR_INVALID_VALUE;
+
+    UriParts base;
+    if (const int result = parseUri(url, base); result != 0) return result;
+    const bool relativeOpaque = isOpaque(relative_uri);
+    if (UriParts relative; !relativeOpaque) {
+        if (const int result = parseUri(relative_uri, relative); result != 0) return result;
+    }
+
+    const size_t urlLength = strnlen(url, URI_MAX_LENGTH);
+    const size_t relativeLength = strnlen(relative_uri, URI_MAX_LENGTH);
+    const size_t size = poolSize(base) + 2 + (urlLength + relativeLength) * 2;
+    if (require) *require = size;
+    if (!merged_url) return 0;
+    if (prepare < size) return ERROR_OUT_OF_MEMORY;
+
+    if (!relativeOpaque) {
+        std::strncpy(merged_url, relative_uri, size);
+        merged_url[size - 1] = '\0';
+        if (require) *require = relativeLength + 1;
+        return 0;
+    }
+
+    std::string path = base.path;
+    const size_t slash = path.rfind('/');
+    if (slash == std::string::npos) path.push_back('/');
+    else path.erase(slash + 1);
+    if (relative_uri[0] == '/') path.clear();
+    path.append(relative_uri, std::min(relativeLength, URI_MAX_LENGTH - std::min(path.size(), URI_MAX_LENGTH)));
+
+    std::string scheme(base.scheme), username(base.username), password(base.password), hostname(base.hostname);
+    SceHttpUriElement element;
+    element.opaque = base.opaque;
+    element.scheme = scheme.data();
+    element.username = username.data();
+    element.password = password.data();
+    element.hostname = hostname.data();
+    element.path = path.data();
+    element.port = base.port;
+    return sceHttpUriBuild(merged_url, nullptr, prepare - (urlLength + relativeLength + 1), &element,
+        URI_BUILD_WITH_SCHEME | URI_BUILD_WITH_HOSTNAME | URI_BUILD_WITH_PORT | URI_BUILD_WITH_PATH | URI_BUILD_WITH_USERNAME | URI_BUILD_WITH_PASSWORD);
+}
+
 int APS5_VABI sceHttpUriParse(SceHttpUriElement* out, const char* src_url, void* pool, size_t* require, size_t prepare) {
     if (!src_url) return ERROR_INVALID_URL;
     const bool write = out && pool;
@@ -206,8 +289,7 @@ int APS5_VABI sceHttpUriParse(SceHttpUriElement* out, const char* src_url, void*
     if (const int result = parseUri(src_url, parts); result != 0) return result;
 
     const std::string_view fields[] = {parts.scheme, parts.username, parts.password, parts.hostname, parts.path, parts.query, parts.fragment};
-    size_t size = 0;
-    for (const std::string_view field : fields) size += field.size() + 1;
+    const size_t size = poolSize(parts);
     if (require) *require = size;
     if (!write) return 0;
     if (prepare < size) return ERROR_OUT_OF_MEMORY;
@@ -230,6 +312,47 @@ int APS5_VABI sceHttpUriParse(SceHttpUriElement* out, const char* src_url, void*
     out->query = strings[5];
     out->fragment = strings[6];
     out->port = parts.port;
+    return 0;
+}
+
+int APS5_VABI sceHttpUriSweepPath(char* dst, const char* src, size_t srcSize) {
+    if (srcSize == 0) return 0;
+    if (!dst || !src) return ERROR_INVALID_VALUE;
+
+    const size_t length = srcSize - 1;
+    if (length == 0 || src[0] != '/') {
+        std::memcpy(dst, src, length);
+        dst[length] = '\0';
+        return 0;
+    }
+
+    dst[0] = '/';
+    dst[1] = '\0';
+    size_t end = 0;
+    size_t pos = 1;
+    while (pos < length) {
+        if (src[pos] == '.' && pos + 1 < length && src[pos + 1] == '/') {
+            pos += 2;
+            continue;
+        }
+        if (src[pos] == '.' && pos + 2 < length && src[pos + 1] == '.' && src[pos + 2] == '/') {
+            if (end != 0) {
+                dst[end] = '\0';
+                end = static_cast<size_t>(std::strrchr(dst, '/') - dst);
+                dst[end + 1] = '\0';
+            }
+            pos += 3;
+            continue;
+        }
+        size_t count = length - pos;
+        if (const void* slash = std::memchr(src + pos, '/', length - pos)) {
+            count = static_cast<size_t>(static_cast<const char*>(slash) + 1 - (src + pos));
+        }
+        std::memcpy(dst + end + 1, src + pos, count);
+        dst[end + 1 + count] = '\0';
+        end += count;
+        pos += count;
+    }
     return 0;
 }
 
