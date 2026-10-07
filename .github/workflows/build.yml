@@ -77,5 +77,14 @@ jobs:
         run: cmake --build build
       - shell: cmd
         run: cmake --build build --target libs
+      - name: Install lavapipe for the GPU execution tests
+        uses: jakoch/install-vulkan-sdk-action@v1.6.0
+        with:
+          install_runtime_only: true
+          install_lavapipe: true
+          cache: false
       - shell: cmd
         run: ctest --test-dir build --output-on-failure --timeout 120 --repeat until-fail:3
+        env:
+          ANYPS5_REQUIRE_VULKAN: 1
+          GALLIUM_OVERRIDE_CPU_CAPS: avx
