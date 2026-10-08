@@ -68,6 +68,25 @@ void Check(std::uint32_t index, bool nsa) {
     }
 }
 
+void CheckOrdinary(std::uint32_t encoding) {
+    const auto inst = Decode(encoding);
+    const bool store = (encoding & 8u) != 0u;
+    IrProgram program;
+    auto& block = program.CreateBlock();
+    program.SetEntryBlock(block);
+    TranslationContext context(program, block, 256);
+    context.TranslateInstruction(inst);
+    std::uint32_t operations = 0;
+    for (auto* value : block.Instructions()) {
+        if (value->Opcode() == (store ? IrOpcode::ImageWrite : IrOpcode::ImageRead)) {
+            const auto& memory = program.Resources().memoryInfo[value->Flags<MemoryFlags>().index];
+            Require(memory.imageByElements == 0u && memory.dmask == 15u && memory.dataDwords == 4u);
+            ++operations;
+        }
+    }
+    Require(operations == 1u);
+}
+
 void Refused(std::uint32_t encoding, std::uint32_t control, std::uint32_t word1 = 0x00101e1eu, std::uint32_t mask = 15u, std::uint32_t dimension = 1u) {
     bool refused = false;
     try { (void)Decode(encoding, control, word1, mask, dimension); }
@@ -78,6 +97,7 @@ void Refused(std::uint32_t encoding, std::uint32_t control, std::uint32_t word1 
 }
 
 int main() {
+    for (auto encoding : {0u, 1u, 8u, 9u}) CheckOrdinary(encoding);
     for (std::uint32_t index = 0; index < Encodings.size(); ++index) {
         Check(index, false);
         Check(index, true);
