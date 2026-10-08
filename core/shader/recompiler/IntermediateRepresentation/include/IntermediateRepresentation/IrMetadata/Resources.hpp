@@ -77,6 +77,7 @@ struct ImageResource {
     bool depthBits = false;
     bool depthUnorm16 = false;
     bool packed = false;
+    std::uint32_t byElements = 0;
     IrBufferFormat packedFormat = IrBufferFormat::Invalid;
     std::uint32_t emulatedCompare = 0;
     std::uint32_t indirectRoot = NoIndirectImage;

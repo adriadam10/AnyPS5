@@ -169,6 +169,12 @@ DecodedImage decodeImageDescriptor(const DescriptorValue& descriptor, const Imag
         }
         decoded.packedFormat = format;
     }
+    if (base.byElements != 0u) {
+        const auto required = base.byElements == 2u ? IrBufferFormat::Format32_32UInt : IrBufferFormat::Format32UInt;
+        if ((base.byElements != 2u && base.byElements != 4u) || format != required || descriptorImageSwizzle(descriptor) != ShaderImageIdentitySwizzle || rawImageType(descriptor) != ImageType::Color2D || base.indirectRoot != ImageResource::NoIndirectImage) {
+            throw std::runtime_error("MIMG BY2/BY4 requires a direct, identity-swizzled 2D RG32_UINT/R32_UINT image respectively");
+        }
+    }
     decoded.conversionFormat = RemapTextureFormat(format) != format ? format : IrBufferFormat::Invalid;
     decoded.srgbDecode = !storage && (srgbDecodeFormats & SrgbDecodeBit(format)) != 0u;
     if (storage || decoded.conversionFormat != IrBufferFormat::Invalid) {
@@ -308,8 +314,8 @@ void resolveTableImage(const IrResourcePlan& plan, std::uint32_t imageIndex, con
     if (image.resourceClass != ImageResourceClass::Sampled) {
         rejectTable(BindlessRejection::Storage, "bindless storage image tables are unsupported");
     }
-    if (image.packed) {
-        throw std::runtime_error("bindless packed image tables are unsupported");
+    if (image.packed || image.byElements != 0u) {
+        throw std::runtime_error("bindless packed and BY2/BY4 image tables are unsupported");
     }
     const auto slots = ResourceMaterializer::BindlessSlots();
     DescriptorValue heapValue;

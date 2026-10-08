@@ -138,6 +138,55 @@ bool TranslationContext::imageGetLod(const RdnaInstruction& inst) {
     return true;
 }
 
+bool TranslationContext::imageBy(const RdnaInstruction& inst) {
+    const auto elements = (inst.imageOpcodeId & 1u) != 0u ? 4u : 2u;
+    const auto channels = 4u / elements;
+    const bool store = (inst.imageOpcodeId & 0x10u) != 0u;
+    MemoryInfo memory = imageMemoryInfoFromInstruction(inst);
+    memory.imageHasMip = (inst.imageOpcodeId & 8u) != 0u;
+    memory.imageByElements = elements;
+    memory.dmask = (1u << channels) - 1u;
+    memory.dataDwords = channels;
+    memory.componentCount = channels;
+    IrValue* resource = getImageResource(memory);
+    IrValue* base = makeImageAddress(inst, inst.source0);
+    IrValue& exec = ir.GetExec();
+    std::array<IrValue*, 4> data{};
+    if (store) {
+        for (std::uint32_t index = 0; index < 4u; ++index) {
+            data[index] = &readRawU32(offsetOperand(inst.destination, index)).Value();
+        }
+    }
+    for (std::uint32_t texel = 0; texel < elements; ++texel) {
+        std::array<IrValue*, 13> address{};
+        for (std::uint32_t index = 0; index < address.size(); ++index) {
+            address[index] = base->Argument(index);
+        }
+        if (texel != 0u) {
+            address[0] = &ir.IAdd(*address[0], ir.Constant(texel));
+        }
+        IrValue& location = ir.Emit(IrOpcode::MakeImageAddress, IrOpcodeType(IrOpcode::MakeImageAddress),
+            {address[0], address[1], address[2], address[3], address[4], address[5], address[6], address[7], address[8], address[9], address[10], address[11], address[12]});
+        if (store) {
+            IrValue& zero = ir.Constant(0u);
+            IrValue& value = ir.Emit(IrOpcode::CompositeConstructU32x4, IrType::U32x4,
+                {data[texel * channels], channels == 2u ? data[texel * channels + 1u] : &zero, &zero, &zero});
+            ir.Emit(IrOpcode::ImageWrite, IrOpcodeType(IrOpcode::ImageWrite), {resource, &location, &value, &exec}, addMemoryInfo(memory, inst.programCounter));
+        } else {
+            IrValue& value = ir.Emit(IrOpcode::ImageRead, IrOpcodeType(IrOpcode::ImageRead), {resource, &location, &exec}, addMemoryInfo(memory, inst.programCounter));
+            for (std::uint32_t channel = 0; channel < channels; ++channel) {
+                data[texel * channels + channel] = &ir.CompositeExtract(value, channel);
+            }
+        }
+    }
+    if (!store) {
+        for (std::uint32_t index = 0; index < 4u; ++index) {
+            writeOperand(offsetOperand(inst.destination, index), data[index]);
+        }
+    }
+    return true;
+}
+
 bool TranslationContext::imageLoad(const RdnaInstruction& inst) {
     const MemoryInfo memory = imageMemoryInfoFromInstruction(inst);
     IrValue* resource = getImageResource(memory);
