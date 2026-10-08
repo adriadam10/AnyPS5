@@ -167,6 +167,7 @@ CompiledVariant sampleVariant() {
     image.srgbDecode = true;
     image.cube = true;
     image.r128 = true;
+    image.byElements = 4;
     image.indirectRoot = 0;
     image.indirectMappingOffset = 12;
     image.indirectSearchIterations = 3;

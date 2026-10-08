@@ -11,6 +11,7 @@
 #include <cstring>
 #include <iostream>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace {
