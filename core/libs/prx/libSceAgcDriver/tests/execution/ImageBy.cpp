@@ -20,7 +20,7 @@ using AgcDriver::Graphics::Require;
 constexpr std::uint32_t Threads = 32;
 constexpr std::uint32_t Width = 256;
 constexpr std::size_t Bytes = 16384;
-alignas(65536) std::array<std::uint8_t, Bytes> Texels{};
+alignas(256) std::array<std::uint8_t, Bytes> Texels{};
 alignas(256) std::array<std::uint32_t, Threads * 4> Output{};
 constexpr std::array<std::uint32_t, 8> Encodings{0x42u, 0x43u, 0x4au, 0x4bu, 0x52u, 0x53u, 0x5au, 0x5bu};
 constexpr std::array<std::uint32_t, 4> Values{101u, 202u, 303u, 404u};
