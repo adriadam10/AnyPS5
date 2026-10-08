@@ -63,7 +63,7 @@ extern "C" int APS5_VABI mkstemp_nid_postfix(char* pattern) {
 
 extern "C" int APS5_VABI isatty_nid_postfix(int descriptor) {
     if (descriptor >= GuestSockets::FirstDescriptor) {
-        Failure(GuestSockets::IsOpen(descriptor) ? 25 : 9);
+        Failure(GuestSocketIsOpen_nid_no_patch(descriptor) ? 25 : 9);
         return 0;
     }
 #ifdef _WIN32
