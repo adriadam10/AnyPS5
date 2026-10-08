@@ -298,6 +298,7 @@ private:
     void vInterpP1F32(const RdnaInstruction& inst);
     void vInterpP2F32(const RdnaInstruction& inst);
     void vInterpMovF32(const RdnaInstruction& inst);
+    std::uint32_t interpolationModeF16(const RdnaInstruction& inst) const;
     IrF32 interpolationParameterF16(const RdnaInstruction& inst, std::uint32_t mode);
     void vInterpP1F16(const RdnaInstruction& inst);
     void vInterpP2F16(const RdnaInstruction& inst);

@@ -103,15 +103,28 @@ IrF32 TranslationContext::interpolationParameterF16(const RdnaInstruction& inst,
     return IrF32(ir.Emit(IrOpcode::GetInterpolationParameterF16, IrType::F32, {&ir.Constant(inst.source1.value), &ir.Constant(inst.source2.value), &ir.Constant(mode), &ir.Constant(inst.source1.opSel ? 1u : 0u)}));
 }
 
+std::uint32_t TranslationContext::interpolationModeF16(const RdnaInstruction& inst) const {
+    if (!floatMode.has_value()) return 0u;
+    const auto mode = floatMode->floatMode;
+    const auto denorm32 = (mode >> 4u) & 3u;
+    const auto denorm16 = (mode >> 6u) & 3u;
+    if ((mode & 0xfu) != 0u || (denorm32 != 0u && denorm32 != 3u) || (denorm16 != 0u && denorm16 != 3u)) {
+        throw std::runtime_error("16-bit interpolation at pc " + std::to_string(inst.programCounter) + " in FLOAT_MODE " + std::to_string(mode) + " is not measured");
+    }
+    return (floatMode->ieeeMode ? InterpolationQuiet : 0u) | (denorm32 == 0u ? InterpolationFlush32 : 0u) | (denorm16 == 0u ? InterpolationFlush16 : 0u);
+}
+
 void TranslationContext::vInterpP1F16(const RdnaInstruction& inst) {
+    const auto mode = interpolationModeF16(inst);
     const IrF32 delta = interpolationParameterF16(inst, 0u);
     const IrF32 origin = inst.op == RdnaOpcode::VInterpP1lvF16 ? readF16AsF32(inst.source3) : interpolationParameterF16(inst, 2u);
-    writeOperand(inst.destination, &ir.Emit(IrOpcode::FPInterpolateF32, IrType::F32, {&delta.Value(), readOperand(inst.source0, IrType::F32), &origin.Value()}));
+    writeOperand(inst.destination, &ir.Emit(IrOpcode::FPInterpolateF32, IrType::F32, {&delta.Value(), readOperand(inst.source0, IrType::F32), &origin.Value(), &ir.Constant(mode)}));
 }
 
 void TranslationContext::vInterpP2F16(const RdnaInstruction& inst) {
+    const auto mode = interpolationModeF16(inst);
     const IrF32 delta = interpolationParameterF16(inst, 1u);
-    writeF16(inst.destination, IrF32(ir.Emit(IrOpcode::FPInterpolateF16, IrType::F32, {&delta.Value(), readOperand(inst.source0, IrType::F32), readOperand(inst.source3, IrType::F32)})));
+    writeF16(inst.destination, IrF32(ir.Emit(IrOpcode::FPInterpolateF16, IrType::F32, {&delta.Value(), readOperand(inst.source0, IrType::F32), readOperand(inst.source3, IrType::F32), &ir.Constant(mode)})));
 }
 
 void TranslationContext::eXP(const RdnaInstruction& inst) {

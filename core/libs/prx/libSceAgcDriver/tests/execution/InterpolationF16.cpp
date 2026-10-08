@@ -136,6 +136,7 @@ ShaderRecompiler::RecompileResult RecompilePixel(std::span<const std::uint32_t> 
         {0, 0, pushOffset, 128 - pushOffset}
     };
     fragment.useCache = false;
+    fragment.context.floatMode = ShaderRecompiler::ShaderFloatMode{0xf0u, true, true, false};
     return ShaderRecompiler::Recompile(fragment);
 }
 
