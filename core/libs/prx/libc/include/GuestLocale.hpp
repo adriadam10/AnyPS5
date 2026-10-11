@@ -11,6 +11,40 @@ struct LocinfoStorage {
     alignas(std::uint64_t) unsigned char bytes[64];
 };
 
+struct Lconv {
+    char* currencySymbol;
+    char* intCurrSymbol;
+    char* monDecimalPoint;
+    char* monGrouping;
+    char* monThousandsSep;
+    char* negativeSign;
+    char* positiveSign;
+    char fracDigits;
+    char nCsPrecedes;
+    char nSepBySpace;
+    char nSignPosn;
+    char pCsPrecedes;
+    char pSepBySpace;
+    char pSignPosn;
+    char intFracDigits;
+    char intNCsPrecedes;
+    char intNSepBySpace;
+    char intNSignPosn;
+    char intPCsPrecedes;
+    char intPSepBySpace;
+    char intPSignPosn;
+    char* decimalPoint;
+    char* grouping;
+    char* thousandsSep;
+    char* fracGrouping;
+    char* fracSep;
+    char* falseName;
+    char* trueName;
+    char* no;
+    char* yes;
+};
+static_assert(sizeof(Lconv) == 0x90 && offsetof(Lconv, fracDigits) == 0x38 && offsetof(Lconv, decimalPoint) == 0x48);
+
 struct Facet;
 
 struct FacetVtable {

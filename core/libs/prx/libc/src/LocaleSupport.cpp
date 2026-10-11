@@ -371,6 +371,18 @@ void APS5_VABI _ZNSt6locale7_Locimp7_AddfacEPNS_5facetEm_nid_postfix(GuestLocale
     self->facets[id] = facet;
 }
 
+GuestLocale::Lconv* APS5_VABI localeconv_nid_postfix() {
+    static char empty[] = "";
+    static char point[] = ".";
+    static char falseName[] = "false";
+    static char trueName[] = "true";
+    static GuestLocale::Lconv classic{empty, empty, empty, empty, empty, empty, empty,
+        CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX,
+        CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX, CHAR_MAX,
+        point, empty, empty, empty, empty, falseName, trueName, empty, empty};
+    return &classic;
+}
+
 void APS5_VABI _init_env_nid_postfix() {
     ApplicationHeapInitialize_nid_no_patch(ApplicationProcessParameters_nid_no_patch());
 }

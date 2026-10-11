@@ -5,6 +5,7 @@
 #include <climits>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -23,6 +24,7 @@ int APS5_VABI _Mbtowcx_nid_postfix(std::uint16_t* dst, const char* src, std::siz
 int APS5_VABI _Wctombx_nid_postfix(char* dst, std::uint16_t src, std::mbstate_t* st);
 void APS5_VABI _Locksyslock_nid_postfix();
 void APS5_VABI _Unlocksyslock_nid_postfix();
+void* APS5_VABI localeconv_nid_postfix();
 
 }
 
@@ -144,12 +146,30 @@ static void CheckStreamDestruction() {
     Require(object.stream.locale == &_ZSt21_sceLibcClassicLocale_nid_postfix);
 }
 
+static void CheckLocaleconv() {
+    const auto* lconv = static_cast<const unsigned char*>(localeconv_nid_postfix());
+    Require(lconv == localeconv_nid_postfix());
+    const auto text = [&](std::size_t offset) {
+        const char* value = nullptr;
+        std::memcpy(&value, lconv + offset, sizeof(value));
+        Require(value != nullptr);
+        return std::string(value);
+    };
+    for (std::size_t offset = 0; offset < 0x38; offset += 8) Require(text(offset).empty());
+    for (std::size_t offset = 0x38; offset < 0x46; ++offset) Require(lconv[offset] == CHAR_MAX);
+    Require(text(0x48) == ".");
+    Require(text(0x50).empty() && text(0x58).empty() && text(0x60).empty() && text(0x68).empty());
+    Require(text(0x70) == "false" && text(0x78) == "true");
+    Require(text(0x80).empty() && text(0x88).empty());
+}
+
 int main() {
     CheckGuestCalls();
     CheckLocinfoAlignment();
     CheckCharacterTables();
     CheckCharacterConversions();
     CheckStreamDestruction();
+    CheckLocaleconv();
     _Locksyslock_nid_postfix();
     _Locksyslock_nid_postfix();
     _Unlocksyslock_nid_postfix();
