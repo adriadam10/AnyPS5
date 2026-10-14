@@ -264,17 +264,21 @@ void verifyFrontendPair() {
         }
         require((preparation.AcquireFrontend(request) == retained) == reuse, "frontend pair: destroying the caller's code changed the retained frontend");
         const auto first = PrepareResourceProgram(partialFirst ? partial : request, &preparation);
+        require(preparation.Translations() == 1u, "frontend pair: the first variant was not translated once");
         const auto second = PrepareResourceProgram(partialFirst ? request : partial, &preparation);
+        require(preparation.Translations() == (reuse ? 1u : 2u), "frontend pair: the second variant did not take over the first translation");
         verifyFrontendProgram(first, partialFirst ? freshPartial : freshFull);
         verifyFrontendProgram(second, partialFirst ? freshFull : freshPartial);
         require(first.BlockOrder().front() != second.BlockOrder().front(), "frontend pair: full and partial variants share mutable IR");
         const auto repeated = PrepareResourceProgram(partialFirst ? partial : request, &preparation);
+        require(preparation.Translations() == (reuse ? 2u : 3u), "frontend pair: a third variant reused a translation that was taken over");
         verifyFrontendProgram(repeated, first);
         auto translated = request;
         translated.context.waveSize = 32u;
         translated.context.compute->numThreads = {32u, 2u, 1u};
         const auto changed = PrepareResourceProgram(translated, &preparation);
         const auto freshChanged = PrepareResourceProgram(translated);
+        require(preparation.Translations() == (reuse ? 3u : 4u), "frontend pair: changed translation inputs reused the translation");
         verifyFrontendProgram(changed, freshChanged);
         require(changed.WaveSize() != freshFull.WaveSize(), "frontend pair: changed translation inputs were ignored");
         require((preparation.AcquireFrontend(request) == retained) == reuse, "frontend pair: translating a variant replaced the frontend");

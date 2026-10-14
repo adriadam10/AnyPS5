@@ -92,6 +92,7 @@ public:
     [[nodiscard]] bool operator==(const IrValue& other) const;
 
 private:
+    friend class IrProgram;
     IrOpcode opcode;
     IrType type;
     std::uint32_t id;

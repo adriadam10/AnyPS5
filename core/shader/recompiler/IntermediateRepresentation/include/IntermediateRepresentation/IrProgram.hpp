@@ -29,6 +29,7 @@ public:
     const IrProgramMetadata& Metadata() const;
     [[nodiscard]] CompiledShaderInfo CompiledInfo() const&;
     CompiledShaderInfo TakeCompiledInfo() &&;
+    [[nodiscard]] IrProgram Clone() const;
     IrValue& CreateValue(IrOpcode opcode, IrType type, std::uint64_t flags);
     void SetEntryBlock(IrBlock& block);
     std::size_t ReclaimUnusedValues();

@@ -90,6 +90,7 @@ function(add_shader_recompiler target runtimeTarget)
             ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Translation/src/MemoryInstructions/MemoryInstructionDispatch.cpp
             ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Translation/src/AttributeInstructions.cpp
             ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Translation/src/DispatchInstructions.cpp
+            ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Translation/src/DispatchThreadLimit.cpp
             ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Optimization/src/SsaBuilder/SsaBuilder.cpp
             ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Optimization/src/SsaBuilder/SsaVariable.cpp
             ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Optimization/src/SsaBuilder/SsaDefTable.cpp

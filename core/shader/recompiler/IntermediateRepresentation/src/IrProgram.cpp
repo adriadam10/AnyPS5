@@ -331,6 +331,136 @@ CompiledShaderInfo compiledInfo(const IrResourcePlan& resourcePlan, std::uint32_
 
 }
 
+IrProgram IrProgram::Clone() const {
+    IrProgram clone;
+    std::vector<const IrValue*> ownValues(nextValueId, nullptr);
+    std::vector<IrValue*> ownCopies(nextValueId, nullptr);
+    std::vector<const IrBlock*> ownBlocks(nextBlockId, nullptr);
+    std::vector<IrBlock*> ownBlockCopies(nextBlockId, nullptr);
+    std::unordered_map<const IrValue*, IrValue*> storedValues;
+    std::unordered_map<const IrBlock*, IrBlock*> storedBlocks;
+    const auto copyValue = [](const IrValue& original) {
+        auto copy = std::make_unique<IrValue>(original.opcode, original.type, original.id);
+        copy->immediateBits = original.immediateBits;
+        copy->registerValue = original.registerValue;
+        copy->flags = original.flags;
+        copy->hasImmediate = original.hasImmediate;
+        return copy;
+    };
+    const auto copyBlock = [](const IrBlock& original) {
+        auto copy = std::make_unique<IrBlock>(original.id);
+        copy->ssaSealed = original.ssaSealed;
+        return copy;
+    };
+    clone.values.reserve(values.size());
+    for (const auto& original : values) {
+        auto copy = copyValue(*original);
+        ownValues[original->id] = original.get();
+        ownCopies[original->id] = copy.get();
+        clone.values.push_back(std::move(copy));
+    }
+    clone.resourcePlan.valueStorage.reserve(resourcePlan.valueStorage.size());
+    for (const auto& original : resourcePlan.valueStorage) {
+        auto copy = copyValue(*original);
+        storedValues.emplace(original.get(), copy.get());
+        clone.resourcePlan.valueStorage.push_back(std::move(copy));
+    }
+    clone.blocks.reserve(blocks.size());
+    for (const auto& original : blocks) {
+        auto copy = copyBlock(*original);
+        ownBlocks[original->id] = original.get();
+        ownBlockCopies[original->id] = copy.get();
+        clone.blocks.push_back(std::move(copy));
+    }
+    clone.resourcePlan.blockStorage.reserve(resourcePlan.blockStorage.size());
+    for (const auto& original : resourcePlan.blockStorage) {
+        auto copy = copyBlock(*original);
+        storedBlocks.emplace(original.get(), copy.get());
+        clone.resourcePlan.blockStorage.push_back(std::move(copy));
+    }
+    const auto value = [&](const IrValue* original) -> IrValue* {
+        if (original == nullptr) return nullptr;
+        if (original->id < ownValues.size() && ownValues[original->id] == original) return ownCopies[original->id];
+        const auto found = storedValues.find(original);
+        if (found == storedValues.end()) throw std::runtime_error("IrProgram::Clone: a value outside the program is referenced");
+        return found->second;
+    };
+    const auto block = [&](const IrBlock* original) -> IrBlock* {
+        if (original == nullptr) return nullptr;
+        if (original->id < ownBlocks.size() && ownBlocks[original->id] == original) return ownBlockCopies[original->id];
+        const auto found = storedBlocks.find(original);
+        if (found == storedBlocks.end()) throw std::runtime_error("IrProgram::Clone: a block outside the program is referenced");
+        return found->second;
+    };
+    const auto linkValues = [&](const std::vector<std::unique_ptr<IrValue>>& source, std::vector<std::unique_ptr<IrValue>>& target) {
+        for (std::size_t index = 0; index < source.size(); ++index) {
+            const IrValue& original = *source[index];
+            IrValue& copy = *target[index];
+            copy.arguments = original.arguments;
+            for (IrValue*& argument : copy.arguments) argument = value(argument);
+            copy.uses = original.uses;
+            for (IrValue*& use : copy.uses) use = value(use);
+            copy.operandUses = original.operandUses;
+            for (IrUse& use : copy.operandUses) use.user = value(use.user);
+            copy.phiBlocks = original.phiBlocks;
+            for (IrBlock*& phiBlock : copy.phiBlocks) phiBlock = block(phiBlock);
+            copy.parent = block(original.parent);
+        }
+    };
+    const auto linkBlocks = [&](const std::vector<std::unique_ptr<IrBlock>>& source, std::vector<std::unique_ptr<IrBlock>>& target) {
+        for (std::size_t index = 0; index < source.size(); ++index) {
+            const IrBlock& original = *source[index];
+            IrBlock& copy = *target[index];
+            for (const IrValue* instruction : original.instructions) copy.instructions.push_back(value(instruction));
+            copy.predecessors = original.predecessors;
+            for (IrBlock*& predecessor : copy.predecessors) predecessor = block(predecessor);
+            copy.successors = original.successors;
+            for (IrBlock*& successor : copy.successors) successor = block(successor);
+        }
+    };
+    linkValues(values, clone.values);
+    linkValues(resourcePlan.valueStorage, clone.resourcePlan.valueStorage);
+    linkBlocks(blocks, clone.blocks);
+    linkBlocks(resourcePlan.blockStorage, clone.resourcePlan.blockStorage);
+    clone.blockOrder.reserve(blockOrder.size());
+    for (const IrBlock* ordered : blockOrder) clone.blockOrder.push_back(block(ordered));
+    clone.entryBlock = block(entryBlock);
+    clone.waveSize = waveSize;
+    clone.nextValueId = nextValueId;
+    clone.nextBlockId = nextBlockId;
+    auto& plan = clone.resourcePlan;
+    plan.stage = resourcePlan.stage;
+    plan.shaderHash = resourcePlan.shaderHash;
+    plan.userDataBase = resourcePlan.userDataBase;
+    plan.userDataCount = resourcePlan.userDataCount;
+    plan.srgbDecodeFormats = resourcePlan.srgbDecodeFormats;
+    plan.memoryInfo = resourcePlan.memoryInfo;
+    plan.descriptorSources = resourcePlan.descriptorSources;
+    for (auto& source : plan.descriptorSources) for (auto& dword : source.dwords) dword = value(dword);
+    plan.controlFlow = resourcePlan.controlFlow;
+    for (auto& flow : plan.controlFlow) flow.condition = value(flow.condition);
+    plan.materializationSources = resourcePlan.materializationSources;
+    plan.srtReads = resourcePlan.srtReads;
+    for (auto& read : plan.srtReads) read.value = value(read.value);
+    plan.guardedSrtSlots = resourcePlan.guardedSrtSlots;
+    plan.srtGuardOffset = resourcePlan.srtGuardOffset;
+    plan.cleanFlatSlots = resourcePlan.cleanFlatSlots;
+    plan.pureFlatSlots = resourcePlan.pureFlatSlots;
+    plan.requiresSpecializationMemory = resourcePlan.requiresSpecializationMemory;
+    plan.srtPlanComplete = resourcePlan.srtPlanComplete;
+    plan.resourceTrackingComplete = resourcePlan.resourceTrackingComplete;
+    plan.info = resourcePlan.info;
+    plan.uniformFill = resourcePlan.uniformFill;
+    for (auto& fill : plan.uniformFill.values) fill = value(fill);
+    clone.metadata = metadata;
+    for (auto& info : clone.metadata.blockInfo) {
+        info.condition = value(info.condition);
+        info.indirectTarget = value(info.indirectTarget);
+    }
+    for (auto& read : clone.metadata.dynamicReads) read = value(read);
+    return clone;
+}
+
 CompiledShaderInfo IrProgram::CompiledInfo() const& {
     return compiledInfo(resourcePlan, waveSize, resourcePlan.info, metadata.bindings);
 }

@@ -69,6 +69,7 @@ public:
     [[nodiscard]] bool Empty() const;
 
 private:
+    friend class IrProgram;
     bool ssaSealed = false;
     std::uint32_t id;
     std::list<IrValue*> instructions;

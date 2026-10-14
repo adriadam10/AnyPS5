@@ -46,6 +46,7 @@
 #include "SpirvBackend/SpirvOptimizer.hpp"
 #endif
 #include "SpirvBackend/SpirvMemory/SpirvInputOutput.hpp"
+#include "Translation/include/Translation/DispatchThreadLimit.hpp"
 #include "Translation/include/Translation/InstructionTranslator.hpp"
 #include "Translation/include/Translation/ShaderInputInfoBuilder.hpp"
 #include <exception>
@@ -120,6 +121,19 @@ std::uint32_t DeviceMemoryLdsBytes(const RecompileRequest& request) {
 
 std::atomic<std::uint64_t> frontEndBuilds{0};
 
+bool frontendPairReuse() {
+    static const bool reuse = std::getenv("APS5_NO_PERF_FRONTEND_PAIR") == nullptr;
+    return reuse;
+}
+
+void translationKey(const RecompileRequest& request, std::vector<std::uint64_t>& key) {
+    auto plain = request;
+    plain.context.compute->partialThreads = {};
+    RecompileCacheKey::Build(plain, key);
+    key.push_back(HostSubgroupSize(request));
+    key.push_back(request.shader.codeAddress);
+}
+
 }
 
 struct PreparedControlFlow {
@@ -148,7 +162,7 @@ struct PreparedControlFlow {
 std::shared_ptr<const PreparedControlFlow> ShaderPreparationContext::AcquireFrontend(const RecompileRequest& request) {
     const auto inputInfo = RequestInputInfo(request);
     const SwappcInfo swappc{inputInfo.vertex != nullptr, request.context.userDataBaseRegister, static_cast<std::uint32_t>(request.context.userData.size())};
-    static const bool reuse = std::getenv("APS5_NO_PERF_FRONTEND_PAIR") == nullptr;
+    const bool reuse = frontendPairReuse();
     if (reuse && frontend != nullptr && frontend->Matches(request, swappc)) {
         return frontend;
     }
@@ -165,6 +179,10 @@ std::uint64_t FrontEndBuilds() {
 
 std::uint32_t ShaderPreparationContext::ResourcePrograms() const {
     return resourcePrograms;
+}
+
+std::uint32_t ShaderPreparationContext::Translations() const {
+    return translations;
 }
 
 IrProgram PrepareResourceProgram(const RecompileRequest& request) {
@@ -205,7 +223,8 @@ IrProgram PrepareResourceProgram(const RecompileRequest& request, ShaderPreparat
         embeddedFetch = EmbeddedVertexFetchAnalyzer{}.Analyze(decoded, inputInfo.vertex->fetchAttribReg, inputInfo.vertex->fetchBufferReg, request.context.userDataBaseRegister, static_cast<std::uint32_t>(request.context.userData.size()), request.context.waveSize);
         translateOptions.embeddedFetch = &embeddedFetch;
     }
-    auto program = translator.Translate(decoded, cfg, translateOptions);
+    constexpr SsaBuilder ssaBuilder;
+    IrProgram program;
     // Debug aid: APS5_DUMP_IR=<hex code address> (or "all") prints the program after each front-end pass.
     const auto dumpIr = [&](const char* pass) {
         static const std::string list = [] { const char* text = std::getenv("APS5_DUMP_IR"); return text ? std::string(text) : std::string(); }();
@@ -215,17 +234,35 @@ IrProgram PrepareResourceProgram(const RecompileRequest& request, ShaderPreparat
         if (list != "all" && list.find(address) == std::string::npos) return;
         std::fprintf(stderr, "==== IR 0x%s after %s\n%s\n", address, pass, ProgramToString(program).c_str());
     };
+    const auto translate = [&] {
+        ++context.translations;
+        program = translator.Translate(decoded, cfg, translateOptions);
+        dumpIr("translate");
+        ssaBuilder.Rewrite(program);
+    };
+    const bool sharedTranslation = stageKind == ShaderStageKind::Compute && preparation != nullptr && frontendPairReuse();
+    struct TranslationKeyStorage {};
+    auto& key = HostThreadLocal<std::vector<std::uint64_t>, TranslationKeyStorage>();
+    if (sharedTranslation) translationKey(request, key);
+    if (sharedTranslation && context.translation != nullptr && context.translationFrontend == frontend && context.translationKey == key) {
+        program = std::move(*context.translation);
+        context.translation.reset();
+    } else {
+        translate();
+        if (sharedTranslation) {
+            context.translation = std::make_unique<IrProgram>(program.Clone());
+            context.translationFrontend = frontend;
+            context.translationKey = key;
+        }
+    }
+    if (stageKind == ShaderStageKind::Compute && request.context.compute->PartialGroups()) LimitDispatchThreads(program);
+    dumpIr("ssa");
 
-    constexpr SsaBuilder ssaBuilder;
     constexpr ConstantFolder constantFolder;
     constexpr DeadCodeEliminator deadCodeEliminator;
     constexpr ReadLaneEliminator readLaneEliminator;
     constexpr MaskedSelectEliminator maskedSelectEliminator;
     const auto simplify = [&] {
-        dumpIr("translate");
-        ssaBuilder.Rewrite(program);
-        dumpIr("ssa");
-
         constantFolder.Fold(program);
         ResolveControlFlowIdentities(program);
         deadCodeEliminator.RemoveIdentities(program);
@@ -260,8 +297,9 @@ IrProgram PrepareResourceProgram(const RecompileRequest& request, ShaderPreparat
     simplify();
     if (stageKind == ShaderStageKind::Pixel && !translateOptions.fragmentShaderBarycentricEnabled && !HostInterpolationChecker{}.Lower(program, *inputInfo.pixel)) {
         translateOptions.fragmentShaderBarycentricEnabled = true;
-        program = translator.Translate(decoded, cfg, translateOptions);
+        translate();
         program.Metadata().barycentricEmulation = true;
+        dumpIr("ssa");
         simplify();
     }
 

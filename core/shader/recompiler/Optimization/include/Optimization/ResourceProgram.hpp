@@ -15,14 +15,19 @@ class ShaderPreparationContext {
 public:
     [[nodiscard]] std::shared_ptr<const PreparedControlFlow> AcquireFrontend(const RecompileRequest& request);
     [[nodiscard]] std::uint32_t ResourcePrograms() const;
+    [[nodiscard]] std::uint32_t Translations() const;
 
 private:
     friend IrProgram PrepareResourceProgram(const RecompileRequest& request, ShaderPreparationContext* preparation);
     friend struct PreparedInterface;
     std::shared_ptr<const PreparedControlFlow> frontend;
+    std::shared_ptr<const PreparedControlFlow> translationFrontend;
+    std::vector<std::uint64_t> translationKey;
+    std::unique_ptr<IrProgram> translation;
     std::shared_ptr<SourceEntry> interfaceSource;
     std::unique_ptr<IrProgram> interfaceProgram;
     std::uint32_t resourcePrograms = 0;
+    std::uint32_t translations = 0;
 };
 
 [[nodiscard]] IrProgram PrepareResourceProgram(const RecompileRequest& request);
