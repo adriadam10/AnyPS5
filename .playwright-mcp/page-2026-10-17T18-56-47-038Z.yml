@@ -1,0 +1,78 @@
+- generic [active] [ref=f7e1]:
+  - banner [ref=f7e2]:
+    - heading "Page not found (404)" [level=1] [ref=f7e3]
+    - table [ref=f7e4]:
+      - rowgroup [ref=f7e5]:
+        - row [ref=f7e6]:
+          - rowheader "Request Method:" [ref=f7e7]
+          - cell "GET" [ref=f7e8]
+        - row [ref=f7e9]:
+          - rowheader "Request URL:" [ref=f7e10]
+          - cell "http://localhost:8011/accounts/profile/" [ref=f7e11]
+  - main [ref=f7e12]:
+    - paragraph [ref=f7e13]:
+      - text: Using the URLconf defined in
+      - code [ref=f7e14]: aps.panel.urls
+      - text: ", Django tried these URL patterns, in this order:"
+    - list [ref=f7e15]:
+      - listitem [ref=f7e16]:
+        - code [ref=f7e17]: api/me
+      - listitem [ref=f7e18]:
+        - code [ref=f7e19]: api/overview
+      - listitem [ref=f7e20]:
+        - code [ref=f7e21]: api/pulls
+      - listitem [ref=f7e22]:
+        - code [ref=f7e23]: api/runs
+      - listitem [ref=f7e24]:
+        - code [ref=f7e25]: api/notices
+      - listitem [ref=f7e26]:
+        - code [ref=f7e27]: api/drafts
+      - listitem [ref=f7e28]:
+        - code [ref=f7e29]: api/drafts/<int:n>
+      - listitem [ref=f7e30]:
+        - code [ref=f7e31]: api/history
+      - listitem [ref=f7e32]:
+        - code [ref=f7e33]: api/mainfix
+      - listitem [ref=f7e34]:
+        - code [ref=f7e35]: api/mainfix/<str:key>/retry
+      - listitem [ref=f7e36]:
+        - code [ref=f7e37]: api/agents
+      - listitem [ref=f7e38]:
+        - code [ref=f7e39]: api/sessions
+      - listitem [ref=f7e40]:
+        - code [ref=f7e41]: api/filters
+      - listitem [ref=f7e42]:
+        - code [ref=f7e43]: api/accounts
+      - listitem [ref=f7e44]:
+        - code [ref=f7e45]: api/charts
+      - listitem [ref=f7e46]:
+        - code [ref=f7e47]: api/events
+      - listitem [ref=f7e48]:
+        - code [ref=f7e49]: api/mq
+      - listitem [ref=f7e50]:
+        - code [ref=f7e51]: api/mq/events
+      - listitem [ref=f7e52]:
+        - code [ref=f7e53]: api/mq/done
+      - listitem [ref=f7e54]:
+        - code [ref=f7e55]: api/mq/requests
+      - listitem [ref=f7e56]:
+        - code [ref=f7e57]: api/mq/status
+      - listitem [ref=f7e58]:
+        - code [ref=f7e59]: api/mq/order
+      - listitem [ref=f7e60]:
+        - code [ref=f7e61]: api/mq/main-fixed
+      - listitem [ref=f7e62]:
+        - code [ref=f7e63]: admin/ [namespace='admin']
+      - listitem [ref=f7e64]:
+        - code [ref=f7e65]: ^(?:agentes|cola|cuentas|graficos|ayuda)?/?$ [name='spa']
+    - paragraph [ref=f7e66]:
+      - text: The current path,
+      - code [ref=f7e67]: accounts/profile/
+      - text: ", didn’t match any of these."
+  - contentinfo [ref=f7e68]:
+    - paragraph [ref=f7e69]:
+      - text: You’re seeing this error because you have
+      - code [ref=f7e70]: DEBUG = True
+      - text: in your Django settings file. Change that to
+      - code [ref=f7e71]: "False"
+      - text: ", and Django will display a standard 404 page."

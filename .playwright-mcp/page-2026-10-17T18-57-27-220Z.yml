@@ -1,0 +1,330 @@
+- generic [ref=f10e3]:
+  - banner [ref=f10e4]:
+    - generic [ref=f10e5]: AnyPS5
+    - navigation [ref=f10e6]:
+      - link "Panel" [ref=f10e7] [cursor=pointer]:
+        - /url: /
+      - link "Cola" [ref=f10e14] [cursor=pointer]:
+        - /url: /cola
+      - link "Agentes" [active] [ref=f10e19] [cursor=pointer]:
+        - /url: /agentes
+      - link "Cuentas" [ref=f10e24] [cursor=pointer]:
+        - /url: /cuentas
+      - link "Gráficos" [ref=f10e29] [cursor=pointer]:
+        - /url: /graficos
+    - generic [ref=f10e34]:
+      - 'generic "último cambio recibido: 20:57:25" [ref=f10e62]':
+        - generic [ref=f10e38]: en directo
+        - generic [ref=f10e39]: · 20:57:26
+      - link "Ayuda" [ref=f10e40] [cursor=pointer]:
+        - /url: /ayuda
+      - link "Admin" [ref=f10e44] [cursor=pointer]:
+        - /url: /admin/
+      - button "Tema claro" [ref=f10e48] [cursor=pointer]
+      - generic [ref=f10e55]:
+        - generic [ref=f10e56]: t
+        - button "Salir" [ref=f10e57] [cursor=pointer]
+  - main [ref=f10e61]:
+    - generic [ref=f10e63]:
+      - generic [ref=f10e64]:
+        - generic [ref=f10e65]:
+          - generic [ref=f10e66]:
+            - heading "Revisores" [level=2] [ref=f10e67]
+            - generic [ref=f10e68]: estado hace 7 min
+          - generic [ref=f10e69]:
+            - switch [ref=f10e70] [cursor=pointer]
+            - generic [ref=f10e73]:
+              - text: slots
+              - combobox "slots" [ref=f10e74]:
+                - option "1"
+                - option "2" [selected]
+                - option "3"
+                - option "4"
+                - option "5"
+                - option "6"
+                - option "7"
+                - option "8"
+            - group "filtros" [ref=f10e75]:
+              - paragraph [ref=f10e77]: cargando filtros…
+            - button "Guardar" [ref=f10e79] [cursor=pointer]
+            - paragraph [ref=f10e80]: El agente lo aplica en ≤30 s; apagar deja terminar el PR en curso.
+        - generic [ref=f10e81]:
+          - heading "Política de revisión" [level=2] [ref=f10e83]
+          - generic [ref=f10e84]:
+            - group "se publican solos" [ref=f10e85]:
+              - generic [ref=f10e87]:
+                - generic [ref=f10e88]:
+                  - checkbox "merge" [checked] [ref=f10e89]
+                  - text: merge
+                - generic [ref=f10e90]:
+                  - checkbox "rebase-merge" [checked] [ref=f10e91]
+                  - text: rebase-merge
+                - generic [ref=f10e92]:
+                  - checkbox "fix-merge" [checked] [ref=f10e93]
+                  - text: fix-merge
+                - generic [ref=f10e94]:
+                  - checkbox "changes" [checked] [ref=f10e95]
+                  - text: changes
+                - generic [ref=f10e96]:
+                  - checkbox "close" [checked] [ref=f10e97]
+                  - text: close
+                - generic [ref=f10e98]:
+                  - checkbox "escalate" [ref=f10e99]
+                  - text: escalate
+            - generic [ref=f10e100]:
+              - text: rutas manuales
+              - textbox "rutas manuales" [ref=f10e101]:
+                - /placeholder: ninguna
+                - text: README.md .github/*
+            - button "Guardar" [ref=f10e103] [cursor=pointer]
+            - paragraph [ref=f10e104]:
+              - text: Globs separados por espacios (
+              - code [ref=f10e105]: "*"
+              - text: cruza
+              - code [ref=f10e106]: /
+              - text: "): un PR que toque una espera tu ok aquí o en Telegram."
+        - generic [ref=f10e107]:
+          - generic [ref=f10e108]:
+            - heading "Tareas periódicas" [level=2] [ref=f10e109]
+            - generic [ref=f10e111]:
+              - generic [ref=f10e112]: "0"
+              - button "Página anterior" [disabled] [ref=f10e113] [cursor=pointer]
+              - button "Página siguiente" [disabled] [ref=f10e116] [cursor=pointer]
+          - table [ref=f10e119]:
+            - rowgroup [ref=f10e124]:
+              - row [ref=f10e125]:
+                - columnheader [ref=f10e126]:
+                  - button "tarea" [ref=f10e127] [cursor=pointer]
+                - columnheader [ref=f10e129]:
+                  - button "terminó" [ref=f10e130] [cursor=pointer]
+                - columnheader [ref=f10e132]:
+                  - button "estado" [ref=f10e133] [cursor=pointer]
+              - row [ref=f10e135]:
+                - columnheader [ref=f10e136]:
+                  - textbox "Filtrar tarea" [ref=f10e137]
+                - columnheader [ref=f10e138]:
+                  - textbox "Filtrar terminó" [ref=f10e139]
+                - columnheader [ref=f10e140]:
+                  - textbox "Filtrar estado" [ref=f10e141]
+          - generic [ref=f10e142]:
+            - table:
+              - rowgroup
+            - paragraph [ref=f10e143]: ninguna todavía
+      - generic [ref=f10e145]:
+        - generic [ref=f10e146]:
+          - heading "Sesiones" [level=2] [ref=f10e147]
+          - generic [ref=f10e148]: 2 activas
+        - tablist [ref=f10e149]:
+          - tab "anyps5-review:slot1" [selected] [ref=f10e150] [cursor=pointer]
+          - tab "anyps5-review:auto" [ref=f10e153] [cursor=pointer]
+          - tab "anyps5-mainfix:72ad496657" [ref=f10e156] [cursor=pointer]
+        - generic [ref=f10e159]: esperando · hace 9 min
+        - generic [ref=f10e163]:
+          - paragraph [ref=f10e164]: "Ahora `agents.py`:"
+          - group [ref=f10e165]:
+            - generic "Bash Wire transcript views into agents windows()" [ref=f10e166] [cursor=pointer]:
+              - generic [ref=f10e169]: Bash
+              - generic "Wire transcript views into agents windows()" [ref=f10e170]
+          - paragraph [ref=f10e171]: "Fix the docstring line wrap, then look at what the panel has for real time (`events.py`)."
+          - group [ref=f10e172]:
+            - generic "Bash Check panel real-time mechanisms and agent loop" [ref=f10e173] [cursor=pointer]:
+              - generic [ref=f10e176]: Bash
+              - generic "Check panel real-time mechanisms and agent loop" [ref=f10e177]
+          - group [ref=f10e178]:
+            - generic "Bash Read SSE topics and agents API" [ref=f10e179] [cursor=pointer]:
+              - generic [ref=f10e182]: Bash
+              - generic "Read SSE topics and agents API" [ref=f10e183]
+          - group [ref=f10e184]:
+            - generic "Bash Find other readers of windows/status.json" [ref=f10e185] [cursor=pointer]:
+              - generic [ref=f10e188]: Bash
+              - generic "Find other readers of windows/status.json" [ref=f10e189]
+          - group [ref=f10e190]:
+            - generic "Bash Check write_json and agents_status helpers" [ref=f10e191] [cursor=pointer]:
+              - generic [ref=f10e194]: Bash
+              - generic "Check write_json and agents_status helpers" [ref=f10e195]
+          - group [ref=f10e196]:
+            - generic "Bash Restructure agents loop with live sessions file" [ref=f10e197] [cursor=pointer]:
+              - generic [ref=f10e200]: Bash
+              - generic "Restructure agents loop with live sessions file" [ref=f10e201]
+          - paragraph [ref=f10e202]: "Caché de parseo en `transcript` para no releer 2 MB cada 2 s si el JSONL no cambió:"
+          - group [ref=f10e203]:
+            - generic "Bash Add parse cache to transcript view" [ref=f10e204] [cursor=pointer]:
+              - generic [ref=f10e207]: Bash
+              - generic "Add parse cache to transcript view" [ref=f10e208]
+          - group [ref=f10e209]:
+            - generic "Bash Add sessions endpoint, SSE topic and cache pruning" [ref=f10e210] [cursor=pointer]:
+              - generic [ref=f10e213]: Bash
+              - generic "Add sessions endpoint, SSE topic and cache pruning" [ref=f10e214]
+          - paragraph [ref=f10e215]: "Ahora los tests: adapto el de `windows` y escribo `test_transcript.py`."
+          - group [ref=f10e216]:
+            - generic "Bash Update agents tests for sessions" [ref=f10e217] [cursor=pointer]:
+              - generic [ref=f10e220]: Bash
+              - generic "Update agents tests for sessions" [ref=f10e221]
+          - group [ref=f10e222]:
+            - generic "Bash Add transcript import to tests" [ref=f10e223] [cursor=pointer]:
+              - generic [ref=f10e226]: Bash
+              - generic "Add transcript import to tests" [ref=f10e227]
+          - group [ref=f10e228]:
+            - generic "Write /home/adria/AnyPS5/improvements/tests/test_transcript.py" [ref=f10e229] [cursor=pointer]:
+              - generic [ref=f10e232]: Write
+              - generic "/home/adria/AnyPS5/improvements/tests/test_transcript.py" [ref=f10e233]
+          - group [ref=f10e234]:
+            - generic "Bash Format, lint and run related tests" [ref=f10e235] [cursor=pointer]:
+              - generic [ref=f10e238]: Bash
+              - generic "Format, lint and run related tests" [ref=f10e239]
+          - group [ref=f10e240]:
+            - generic "Bash Lint and run related tests" [ref=f10e241] [cursor=pointer]:
+              - generic [ref=f10e244]: Bash
+              - generic "Lint and run related tests" [ref=f10e245]
+          - group [ref=f10e246]:
+            - generic "Bash Fix expected timestamp and run full suite" [ref=f10e247] [cursor=pointer]:
+              - generic [ref=f10e250]: Bash
+              - generic "Fix expected timestamp and run full suite" [ref=f10e251]
+          - paragraph [ref=f10e252]: "Backend casi listo; arreglo un test del API de agentes que aún espera `windows` en `status.json`."
+          - group [ref=f10e253]:
+            - generic "Bash Read failing reviews test" [ref=f10e254] [cursor=pointer]:
+              - generic [ref=f10e257]: Bash
+              - generic "Read failing reviews test" [ref=f10e258]
+          - group [ref=f10e259]:
+            - generic "Bash Update reviews API test and rerun suite" [ref=f10e260] [cursor=pointer]:
+              - generic [ref=f10e263]: Bash
+              - generic "Update reviews API test and rerun suite" [ref=f10e264]
+          - paragraph [ref=f10e265]: "Ahora el front. Miro tipos, componentes `ui` y el formato de fechas."
+          - group [ref=f10e266]:
+            - generic "Bash Read types, ui exports, help and rest of Agents page" [ref=f10e267] [cursor=pointer]:
+              - generic [ref=f10e270]: Bash
+              - generic "Read types, ui exports, help and rest of Agents page" [ref=f10e271]
+          - group [ref=f10e272]:
+            - generic "Bash Check deps, markdown usage, design system" [ref=f10e273] [cursor=pointer]:
+              - generic [ref=f10e276]: Bash
+              - generic "Check deps, markdown usage, design system" [ref=f10e277]
+          - group [ref=f10e278]:
+            - generic "Bash Read ui primitives, format helpers, theme colors" [ref=f10e279] [cursor=pointer]:
+              - generic [ref=f10e282]: Bash
+              - generic "Read ui primitives, format helpers, theme colors" [ref=f10e283]
+          - paragraph [ref=f10e284]: "Escribo el componente `Sessions` en su propio fichero:"
+          - group [ref=f10e285]:
+            - generic "Write /home/adria/AnyPS5/improvements/systems/panel/web/src/components/Sessions.tsx" [ref=f10e286] [cursor=pointer]:
+              - generic [ref=f10e289]: Write
+              - generic "/home/adria/AnyPS5/improvements/systems/panel/web/src/components/Sessions.tsx" [ref=f10e290]
+          - group [ref=f10e291]:
+            - generic "Bash Add id and optional output to Event" [ref=f10e292] [cursor=pointer]:
+              - generic [ref=f10e295]: Bash
+              - generic "Add id and optional output to Event" [ref=f10e296]
+          - group [ref=f10e297]:
+            - generic "Read /home/adria/AnyPS5/improvements/src/aps/transcript.py" [ref=f10e298] [cursor=pointer]:
+              - generic [ref=f10e301]: Read
+              - generic "/home/adria/AnyPS5/improvements/src/aps/transcript.py" [ref=f10e302]
+          - group [ref=f10e303]:
+            - generic "Bash Use stable ids and replace() in parser, rerun tests" [ref=f10e304] [cursor=pointer]:
+              - generic [ref=f10e307]: Bash
+              - generic "Use stable ids and replace() in parser, rerun tests" [ref=f10e308]
+          - group [ref=f10e309]:
+            - generic "Bash Fix agents test Event signature and rerun" [ref=f10e310] [cursor=pointer]:
+              - generic [ref=f10e313]: Bash
+              - generic "Fix agents test Event signature and rerun" [ref=f10e314]
+          - paragraph [ref=f10e315]: "Ahora tipos, tópico SSE, página y ayuda en el front:"
+          - group [ref=f10e316]:
+            - generic "Bash Wire frontend types, topic, page and help; run biome" [ref=f10e317] [cursor=pointer]:
+              - generic [ref=f10e320]: Bash
+              - generic "Wire frontend types, topic, page and help; run biome" [ref=f10e321]
+          - group [ref=f10e322]:
+            - generic "Bash Show biome errors" [ref=f10e323] [cursor=pointer]:
+              - generic [ref=f10e326]: Bash
+              - generic "Show biome errors" [ref=f10e327]
+          - group [ref=f10e328]:
+            - generic "Bash Fix lint, then build and run frontend tests" [ref=f10e329] [cursor=pointer]:
+              - generic [ref=f10e332]: Bash
+              - generic "Fix lint, then build and run frontend tests" [ref=f10e333]
+          - paragraph [ref=f10e334]: "Todo verde: ruff, 196 tests de pytest, biome, build y vitest. Lo pruebo con un transcript real, el de esta sesión:"
+          - group [ref=f10e335]:
+            - generic "Bash Parse this session's real transcript" [ref=f10e336] [cursor=pointer]:
+              - generic [ref=f10e339]: Bash
+              - generic "Parse this session's real transcript" [ref=f10e340]
+          - paragraph [ref=f10e341]: "El parser funciona con datos reales. Antes de pedir el commit, lo veo en el navegador: monto el panel en local con un `sessions.json` real."
+          - group [ref=f10e342]:
+            - generic "Bash Check how to run panel locally" [ref=f10e343] [cursor=pointer]:
+              - generic [ref=f10e346]: Bash
+              - generic "Check how to run panel locally" [ref=f10e347]
+          - group [ref=f10e348]:
+            - generic "Bash Prepare local panel with real session data" [ref=f10e349] [cursor=pointer]:
+              - generic [ref=f10e352]: Bash
+              - generic "Prepare local panel with real session data" [ref=f10e353]
+          - group [ref=f10e354]:
+            - generic "Bash EVENTO EN VIVO de prueba" [ref=f10e355] [cursor=pointer]:
+              - generic [ref=f10e358]: Bash
+              - generic "EVENTO EN VIVO de prueba" [ref=f10e359]
+      - generic [ref=f10e360]:
+        - generic [ref=f10e361]:
+          - heading "Borradores" [level=2] [ref=f10e362]
+          - generic [ref=f10e364]:
+            - generic [ref=f10e365]: "0"
+            - button "Página anterior" [disabled] [ref=f10e366] [cursor=pointer]
+            - button "Página siguiente" [disabled] [ref=f10e369] [cursor=pointer]
+        - table [ref=f10e372]:
+          - rowgroup [ref=f10e379]:
+            - row [ref=f10e380]:
+              - columnheader [ref=f10e381]:
+                - button "#" [ref=f10e382] [cursor=pointer]
+              - columnheader [ref=f10e384]:
+                - button "título" [ref=f10e385] [cursor=pointer]
+              - columnheader [ref=f10e387]:
+                - button "autor" [ref=f10e388] [cursor=pointer]
+              - columnheader [ref=f10e390]:
+                - button "veredicto" [ref=f10e391] [cursor=pointer]
+              - columnheader [ref=f10e393]:
+                - button "grupo" [ref=f10e394] [cursor=pointer]
+            - row [ref=f10e396]:
+              - columnheader [ref=f10e397]:
+                - 'textbox "Filtrar #" [ref=f10e398]'
+              - columnheader [ref=f10e399]:
+                - textbox "Filtrar título" [ref=f10e400]
+              - columnheader [ref=f10e401]:
+                - textbox "Filtrar autor" [ref=f10e402]
+              - columnheader [ref=f10e403]:
+                - textbox "Filtrar veredicto" [ref=f10e404]
+              - columnheader [ref=f10e405]:
+                - textbox "Filtrar grupo" [ref=f10e406]
+        - generic [ref=f10e407]:
+          - table:
+            - rowgroup
+          - paragraph [ref=f10e408]: ninguno
+      - generic [ref=f10e409]:
+        - generic [ref=f10e410]:
+          - heading "Histórico" [level=2] [ref=f10e411]
+          - generic [ref=f10e413]:
+            - generic [ref=f10e414]: "0"
+            - button "Página anterior" [disabled] [ref=f10e415] [cursor=pointer]
+            - button "Página siguiente" [disabled] [ref=f10e418] [cursor=pointer]
+        - table [ref=f10e421]:
+          - rowgroup [ref=f10e429]:
+            - row [ref=f10e430]:
+              - columnheader [ref=f10e431]:
+                - button "fecha" [ref=f10e432] [cursor=pointer]
+              - columnheader [ref=f10e434]:
+                - button "#" [ref=f10e435] [cursor=pointer]
+              - columnheader [ref=f10e437]:
+                - button "autor" [ref=f10e438] [cursor=pointer]
+              - columnheader [ref=f10e440]:
+                - button "veredicto" [ref=f10e441] [cursor=pointer]
+              - columnheader [ref=f10e443]:
+                - button "etapa" [ref=f10e444] [cursor=pointer]
+              - columnheader [ref=f10e446]:
+                - button "motivo" [ref=f10e447] [cursor=pointer]
+            - row [ref=f10e449]:
+              - columnheader [ref=f10e450]:
+                - textbox "Filtrar fecha" [ref=f10e451]
+              - columnheader [ref=f10e452]:
+                - 'textbox "Filtrar #" [ref=f10e453]'
+              - columnheader [ref=f10e454]:
+                - textbox "Filtrar autor" [ref=f10e455]
+              - columnheader [ref=f10e456]:
+                - textbox "Filtrar veredicto" [ref=f10e457]
+              - columnheader [ref=f10e458]:
+                - textbox "Filtrar etapa" [ref=f10e459]
+              - columnheader [ref=f10e460]:
+                - textbox "Filtrar motivo" [ref=f10e461]
+        - generic [ref=f10e462]:
+          - table:
+            - rowgroup
+          - paragraph [ref=f10e463]: nada

@@ -1,0 +1,4 @@
+- generic [active] [ref=e1]:
+  - link "Ir al contenido" [ref=e2] [cursor=pointer]:
+    - /url: "#start-of-content"
+  - contentinfo

@@ -1,0 +1,43 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - heading "Prohibido (403)" [level=1] [ref=f5e3]
+    - paragraph [ref=f5e4]: La verificación CSRF ha fallado. Solicitud abortada.
+  - generic [ref=f5e5]:
+    - heading "Help" [level=2] [ref=f5e6]
+    - paragraph [ref=f5e7]: "Reason given for failure:"
+    - generic [ref=f5e8]: Origin checking failed - http://localhost:5199 does not match any trusted origins.
+    - paragraph [ref=f5e9]:
+      - text: In general, this can occur when there is a genuine Cross Site Request Forgery, or when
+      - link "Django’s CSRF mechanism" [ref=f5e10] [cursor=pointer]:
+        - /url: https://docs.djangoproject.com/en/6.1/ref/csrf/
+      - text: "has not been used correctly. For POST forms, you need to ensure:"
+    - list [ref=f5e11]:
+      - listitem [ref=f5e12]: Your browser is accepting cookies.
+      - listitem [ref=f5e13]:
+        - text: The view function passes a
+        - code [ref=f5e14]: request
+        - text: to the template’s
+        - link [ref=f5e15] [cursor=pointer]:
+          - /url: https://docs.djangoproject.com/en/6.1/topics/templates/#django.template.backends.base.Template.render
+          - code [ref=f5e16]: render
+        - text: method.
+      - listitem [ref=f5e17]:
+        - text: In the template, there is a
+        - code [ref=f5e18]: "{% csrf_token %}"
+        - text: template tag inside each POST form that targets an internal URL.
+      - listitem [ref=f5e19]:
+        - text: If you are not using
+        - code [ref=f5e20]: CsrfViewMiddleware
+        - text: ", then you must use"
+        - code [ref=f5e21]: csrf_protect
+        - text: on any views that use the
+        - code [ref=f5e22]: csrf_token
+        - text: template tag, as well as those that accept the POST data.
+      - listitem [ref=f5e23]: The form has a valid CSRF token. After logging in in another browser tab or hitting the back button after a login, you may need to reload the page with the form, because the token is rotated after a login.
+    - paragraph [ref=f5e24]:
+      - text: You’re seeing the help section of this page because you have
+      - code [ref=f5e25]: DEBUG = True
+      - text: in your Django settings file. Change that to
+      - code [ref=f5e26]: "False"
+      - text: ", and only the initial error message will be displayed."
+    - paragraph [ref=f5e27]: You can customize this page using the CSRF_FAILURE_VIEW setting.

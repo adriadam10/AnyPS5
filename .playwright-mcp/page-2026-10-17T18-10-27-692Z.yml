@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - heading "Welcome back to AnyPS5" [level=1] [ref=e6]:
+      - generic [ref=e7]: Welcome back to
+      - generic [ref=e8]: AnyPS5
+    - generic [ref=e9]:
+      - generic [ref=e11]:
+        - generic [ref=e12]: Nombre de usuario*
+        - textbox "Nombre de usuario*" [ref=e13]
+      - generic [ref=e15]:
+        - generic [ref=e16]: Contraseña*
+        - textbox "Contraseña*" [ref=e17]
+      - button "Iniciar sesión arrow_forward" [ref=e19] [cursor=pointer]:
+        - text: Iniciar sesión
+        - generic [ref=e20]: arrow_forward
+  - generic [ref=e21]:
+    - link "arrow_back Return to site" [ref=e22] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e23]: arrow_back
+      - text: Return to site
+    - generic [ref=e24]: computer

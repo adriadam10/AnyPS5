@@ -1,0 +1,23 @@
+- generic [ref=f2e3]:
+  - banner [ref=f2e4]:
+    - generic [ref=f2e5]: AnyPS5
+    - navigation [ref=f2e6]:
+      - link "Panel" [ref=f2e7] [cursor=pointer]:
+        - /url: /
+      - link "Agentes" [ref=f2e14] [cursor=pointer]:
+        - /url: /agentes
+      - link "Cuentas" [ref=f2e19] [cursor=pointer]:
+        - /url: /cuentas
+      - link "Gráficos" [ref=f2e24] [cursor=pointer]:
+        - /url: /graficos
+    - generic [ref=f2e29]:
+      - generic [ref=f2e30]:
+        - generic [ref=f2e33]: sin conexión
+        - generic [ref=f2e34]: · 14:12:36
+      - link "Ayuda" [ref=f2e35] [cursor=pointer]:
+        - /url: /ayuda
+      - link "Admin" [ref=f2e39] [cursor=pointer]:
+        - /url: /admin/
+      - button "Tema claro" [ref=f2e43] [cursor=pointer]
+      - button "Salir" [ref=f2e51] [cursor=pointer]
+  - main [ref=f2e55]

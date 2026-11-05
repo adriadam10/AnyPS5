@@ -1,0 +1,18 @@
+- generic [ref=f4e3]:
+  - generic [ref=f4e4]:
+    - heading "Welcome back to AnyPS5" [level=1] [ref=f4e6]
+    - generic [ref=f4e7]:
+      - generic [ref=f4e9]:
+        - generic [ref=f4e10]: Nombre de usuario*
+        - textbox "Nombre de usuario*" [active] [ref=f4e11]
+      - generic [ref=f4e13]:
+        - generic [ref=f4e14]: Contraseña*
+        - textbox "Contraseña*" [ref=f4e15]
+      - button "Iniciar sesión arrow_forward" [ref=f4e17]
+  - generic [ref=f4e18]:
+    - link "arrow_back Return to site" [ref=f4e19] [cursor=pointer]:
+      - /url: /
+    - navigation [ref=f4e22]:
+      - generic [ref=f4e23]: light_mode Light
+      - generic [ref=f4e24]: dark_mode Dark
+      - generic [ref=f4e25]: computer System

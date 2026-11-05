@@ -1,0 +1,437 @@
+- generic [ref=f1e3]:
+  - banner [ref=f1e4]:
+    - generic [ref=f1e5]: AnyPS5
+    - navigation [ref=f1e6]:
+      - link "Panel" [ref=f1e7] [cursor=pointer]:
+        - /url: /
+      - link "Agentes" [ref=f1e14] [cursor=pointer]:
+        - /url: /agentes
+      - link "Cuentas" [ref=f1e19] [cursor=pointer]:
+        - /url: /cuentas
+      - link "Gráficos" [ref=f1e24] [cursor=pointer]:
+        - /url: /graficos
+    - generic [ref=f1e29]:
+      - 'generic "último cambio recibido: 14:12:00" [ref=f1e30]':
+        - generic [ref=f1e33]: en directo
+        - generic [ref=f1e34]: · 14:12:29
+      - link "Ayuda" [ref=f1e35] [cursor=pointer]:
+        - /url: /ayuda
+      - link "Admin" [ref=f1e39] [cursor=pointer]:
+        - /url: /admin/
+      - button "Tema claro" [ref=f1e43] [cursor=pointer]
+      - generic [ref=f1e50]:
+        - generic [ref=f1e51]: localtest
+        - button "Salir" [ref=f1e52] [cursor=pointer]
+  - main [ref=f1e56]:
+    - generic [ref=f1e57]:
+      - generic [ref=f1e58]:
+        - generic [ref=f1e474]:
+          - generic [ref=f1e475]:
+            - heading "Revisores" [level=2] [ref=f1e476]
+            - generic [ref=f1e477]: agente sin estado
+          - generic [ref=f1e478]:
+            - switch [ref=f1e479] [cursor=pointer]
+            - generic [ref=f1e482]:
+              - text: slots
+              - combobox "slots" [ref=f1e483]:
+                - option "1"
+                - option "2" [selected]
+                - option "3"
+                - option "4"
+                - option "5"
+                - option "6"
+                - option "7"
+                - option "8"
+            - group "filtros" [ref=f1e484]:
+              - generic [ref=f1e486]:
+                - list "filtros activos" [ref=f1e487]:
+                  - 'listitem "de qué va el PR (lista abajo); los tipos de commit salen del título («fix(libc): …»)" [ref=f1e488]':
+                    - generic [ref=f1e489]: tema
+                    - generic [ref=f1e490]: lib-closed
+                    - button "Quitar tema lib-closed" [ref=f1e491] [cursor=pointer]
+                  - listitem "no tiene ninguna de esas etiquetas («needs rebase», por ejemplo)" [ref=f1e495]:
+                    - generic [ref=f1e496]: sin etiqueta
+                    - generic [ref=f1e497]: needs rebase
+                    - button "Quitar sin etiqueta needs rebase" [ref=f1e498] [cursor=pointer]
+                  - listitem "todos los checks del head acabaron en verde (skipped/neutral cuentan como verde)" [ref=f1e502]:
+                    - generic [ref=f1e503]: CI en verde
+                    - button "Quitar CI en verde" [ref=f1e504] [cursor=pointer]
+                - combobox "tipo de filtro" [ref=f1e509]:
+                  - option "añadir filtro…" [selected]
+                  - option "tema"
+                  - option "área"
+                  - option "sin área"
+                  - option "etiqueta"
+                  - option "sin etiqueta"
+                  - option "autor"
+                  - option "sin autor"
+                  - option "PR"
+                  - option "máx. líneas"
+                  - option "edad mín. (días)"
+                  - option "edad máx. (días)"
+                  - option "visto por terceros"
+                  - option "cierra un issue"
+                  - option "sin solapes"
+                  - option "orden"
+                - paragraph [ref=f1e510]:
+                  - text: Varios valores del mismo tipo suman opciones (O); tipos distintos deben cumplirse todos (Y).
+                  - link "Más" [ref=f1e511] [cursor=pointer]:
+                    - /url: /ayuda#filtros
+            - button "Guardar" [ref=f1e513] [cursor=pointer]
+            - paragraph [ref=f1e514]: El agente lo aplica en ≤30 s; apagar deja terminar el PR en curso.
+        - generic [ref=f1e81]:
+          - heading "Política de revisión" [level=2] [ref=f1e83]
+          - generic [ref=f1e84]:
+            - group "se publican solos" [ref=f1e85]:
+              - generic [ref=f1e87]:
+                - generic [ref=f1e88]:
+                  - checkbox "merge" [checked] [ref=f1e89]
+                  - text: merge
+                - generic [ref=f1e90]:
+                  - checkbox "rebase-merge" [checked] [ref=f1e91]
+                  - text: rebase-merge
+                - generic [ref=f1e92]:
+                  - checkbox "fix-merge" [checked] [ref=f1e93]
+                  - text: fix-merge
+                - generic [ref=f1e94]:
+                  - checkbox "changes" [checked] [ref=f1e95]
+                  - text: changes
+                - generic [ref=f1e96]:
+                  - checkbox "close" [checked] [ref=f1e97]
+                  - text: close
+                - generic [ref=f1e98]:
+                  - checkbox "escalate" [ref=f1e99]
+                  - text: escalate
+            - generic [ref=f1e100]:
+              - text: rutas manuales
+              - textbox "rutas manuales" [ref=f1e101]:
+                - /placeholder: ninguna
+                - text: README.md .github/*
+            - button "Guardar" [ref=f1e103] [cursor=pointer]
+            - paragraph [ref=f1e104]:
+              - text: Globs separados por espacios (
+              - code [ref=f1e105]: "*"
+              - text: cruza
+              - code [ref=f1e106]: /
+              - text: "): un PR que toque una espera tu ok aquí o en Telegram."
+        - generic [ref=f1e107]:
+          - generic [ref=f1e108]:
+            - heading "Tareas periódicas" [level=2] [ref=f1e109]
+            - generic [ref=f1e111]:
+              - generic [ref=f1e112]: "0"
+              - button "Página anterior" [disabled] [ref=f1e113] [cursor=pointer]
+              - button "Página siguiente" [disabled] [ref=f1e116] [cursor=pointer]
+          - table [ref=f1e119]:
+            - rowgroup [ref=f1e124]:
+              - row [ref=f1e125]:
+                - columnheader "tarea" [ref=f1e126]
+                - columnheader "terminó" [ref=f1e127]
+                - columnheader "estado" [ref=f1e128]
+          - generic [ref=f1e129]:
+            - table:
+              - rowgroup
+            - paragraph [ref=f1e130]: ninguna todavía
+      - generic [ref=f1e132]:
+        - generic [ref=f1e133]:
+          - heading "Sesiones" [level=2] [ref=f1e134]
+          - generic [ref=f1e135]: 0 activas
+        - paragraph [ref=f1e136]: ninguna
+      - generic [ref=f1e137]:
+        - generic [ref=f1e138]:
+          - heading "Borradores" [level=2] [ref=f1e139]
+          - generic [ref=f1e141]:
+            - generic [ref=f1e142]: 1–12 de 46
+            - button "Página anterior" [disabled] [ref=f1e143] [cursor=pointer]
+            - button "Página siguiente" [ref=f1e146] [cursor=pointer]
+        - table [ref=f1e149]:
+          - rowgroup [ref=f1e156]:
+            - row [ref=f1e157]:
+              - columnheader "#" [ref=f1e158]
+              - columnheader "título" [ref=f1e159]
+              - columnheader "autor" [ref=f1e160]
+              - columnheader "veredicto" [ref=f1e161]
+              - columnheader "grupo" [ref=f1e162]
+        - table [ref=f1e164]:
+          - rowgroup [ref=f1e171]:
+            - row [ref=f1e172]:
+              - cell [ref=f1e173]:
+                - link "#6208" [ref=f1e174] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6208
+              - cell [ref=f1e175]:
+                - 'button "perf(agc): pipeline DMA_DATA by default and do not drain around it" [ref=f1e176] [cursor=pointer]'
+              - cell [ref=f1e177]:
+                - link "ivica00" [ref=f1e178] [cursor=pointer]:
+                  - /url: https://github.com/ivica00
+              - cell "merge" [ref=f1e179]
+              - cell "—" [ref=f1e180]
+            - row [ref=f1e183]:
+              - cell [ref=f1e184]:
+                - link "#6144" [ref=f1e185] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6144
+              - cell [ref=f1e186]:
+                - 'button "feat(libc): implement safe wide string and concatenation functions" [ref=f1e187] [cursor=pointer]'
+              - cell [ref=f1e188]:
+                - link "freshstart2066-create" [ref=f1e189] [cursor=pointer]:
+                  - /url: https://github.com/freshstart2066-create
+              - cell "merge" [ref=f1e190]
+              - cell "—" [ref=f1e191]
+            - row [ref=f1e194]:
+              - cell [ref=f1e195]:
+                - link "#6142" [ref=f1e196] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6142
+              - cell [ref=f1e197]:
+                - 'button "fix(libSceNet): set an option on a libkernel socket through sceNetSetsockopt" [ref=f1e198] [cursor=pointer]'
+              - cell [ref=f1e199]:
+                - link "milescoviello" [ref=f1e200] [cursor=pointer]:
+                  - /url: https://github.com/milescoviello
+              - cell "merge" [ref=f1e201]
+              - cell "—" [ref=f1e202]
+            - row [ref=f1e205]:
+              - cell [ref=f1e206]:
+                - link "#6140" [ref=f1e207] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6140
+              - cell [ref=f1e208]:
+                - 'button "fix(libSceNet): close a libkernel socket through sceNetSocketClose" [ref=f1e209] [cursor=pointer]'
+              - cell [ref=f1e210]:
+                - link "milescoviello" [ref=f1e211] [cursor=pointer]:
+                  - /url: https://github.com/milescoviello
+              - cell "merge" [ref=f1e212]
+              - cell "—" [ref=f1e213]
+            - row [ref=f1e216]:
+              - cell [ref=f1e217]:
+                - link "#6135" [ref=f1e218] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6135
+              - cell [ref=f1e219]:
+                - 'button "feat(libSceVideoOut): export the hardware cursor functions as not implemented" [ref=f1e220] [cursor=pointer]'
+              - cell [ref=f1e221]:
+                - link "DavidSamir" [ref=f1e222] [cursor=pointer]:
+                  - /url: https://github.com/DavidSamir
+              - cell "merge" [ref=f1e223]
+              - cell "—" [ref=f1e224]
+            - row [ref=f1e227]:
+              - cell [ref=f1e228]:
+                - link "#6133" [ref=f1e229] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6133
+              - cell [ref=f1e230]:
+                - 'button "feat(libc): implement __modti3" [ref=f1e231] [cursor=pointer]'
+              - cell [ref=f1e232]:
+                - link "AkulTyagi11" [ref=f1e233] [cursor=pointer]:
+                  - /url: https://github.com/AkulTyagi11
+              - cell "merge" [ref=f1e234]
+              - cell "—" [ref=f1e235]
+            - row [ref=f1e238]:
+              - cell [ref=f1e239]:
+                - link "#6132" [ref=f1e240] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6132
+              - cell [ref=f1e241]:
+                - 'button "fix(libkernel): log resolved paths for failed opens" [ref=f1e242] [cursor=pointer]'
+              - cell [ref=f1e243]:
+                - link "MarcZX100" [ref=f1e244] [cursor=pointer]:
+                  - /url: https://github.com/MarcZX100
+              - cell "merge" [ref=f1e245]
+              - cell "—" [ref=f1e246]
+            - row [ref=f1e249]:
+              - cell [ref=f1e250]:
+                - link "#6129" [ref=f1e251] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6129
+              - cell [ref=f1e252]:
+                - 'button "fix(agc): print the VGT_TF_PARAM and VGT_LS_HS_CONFIG fields of a refused tessellation draw" [ref=f1e253] [cursor=pointer]'
+              - cell [ref=f1e254]:
+                - link "fdfawef324" [ref=f1e255] [cursor=pointer]:
+                  - /url: https://github.com/fdfawef324
+              - cell "merge" [ref=f1e256]
+              - cell "—" [ref=f1e257]
+            - row [ref=f1e260]:
+              - cell [ref=f1e261]:
+                - link "#6126" [ref=f1e262] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6126
+              - cell [ref=f1e263]:
+                - 'button "feat(libSceJson2): implement Value::setTypeMismatchHandler and store the element access failure and special float handlers" [ref=f1e264] [cursor=pointer]'
+              - cell [ref=f1e265]:
+                - link "fdfawef324" [ref=f1e266] [cursor=pointer]:
+                  - /url: https://github.com/fdfawef324
+              - cell "rebase-merge" [ref=f1e267]
+              - cell "—" [ref=f1e268]
+            - row [ref=f1e271]:
+              - cell [ref=f1e272]:
+                - link "#6124" [ref=f1e273] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6124
+              - cell [ref=f1e274]:
+                - 'button "feat(libc): reserve the guest arena on macOS" [ref=f1e275] [cursor=pointer]'
+              - cell [ref=f1e276]:
+                - link "yripper" [ref=f1e277] [cursor=pointer]:
+                  - /url: https://github.com/yripper
+              - cell "merge" [ref=f1e278]
+              - cell "—" [ref=f1e279]
+            - row [ref=f1e282]:
+              - cell [ref=f1e283]:
+                - link "#6123" [ref=f1e284] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6123
+              - cell [ref=f1e285]:
+                - 'button "feat(libkernel): trace semaphore lifecycle under sync logging" [ref=f1e286] [cursor=pointer]'
+              - cell [ref=f1e287]:
+                - link "MarcZX100" [ref=f1e288] [cursor=pointer]:
+                  - /url: https://github.com/MarcZX100
+              - cell "merge" [ref=f1e289]
+              - cell "—" [ref=f1e290]
+            - row [ref=f1e293]:
+              - cell [ref=f1e294]:
+                - link "#6122" [ref=f1e295] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6122
+              - cell [ref=f1e296]:
+                - 'button "feat(agc): accept SAMPLE_STREAMOUTSTATS events without a destination in EVENT_WRITE" [ref=f1e297] [cursor=pointer]'
+              - cell [ref=f1e298]:
+                - link "fdfawef324" [ref=f1e299] [cursor=pointer]:
+                  - /url: https://github.com/fdfawef324
+              - cell "merge" [ref=f1e300]
+              - cell "—" [ref=f1e301]
+      - generic [ref=f1e304]:
+        - generic [ref=f1e305]:
+          - heading "Histórico" [level=2] [ref=f1e306]
+          - generic [ref=f1e308]:
+            - generic [ref=f1e309]: 1–12 de 6913
+            - button "Página anterior" [disabled] [ref=f1e310] [cursor=pointer]
+            - button "Página siguiente" [ref=f1e313] [cursor=pointer]
+        - table [ref=f1e316]:
+          - rowgroup [ref=f1e324]:
+            - row [ref=f1e325]:
+              - columnheader "fecha" [ref=f1e326]
+              - columnheader "#" [ref=f1e327]
+              - columnheader "autor" [ref=f1e328]
+              - columnheader "veredicto" [ref=f1e329]
+              - columnheader "etapa" [ref=f1e330]
+              - columnheader "motivo" [ref=f1e331]
+        - table [ref=f1e333]:
+          - rowgroup [ref=f1e341]:
+            - row [ref=f1e342]:
+              - cell "2026-10-17" [ref=f1e343]
+              - cell [ref=f1e344]:
+                - link "#6208" [ref=f1e345] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6208
+              - cell [ref=f1e346]:
+                - link "ivica00" [ref=f1e347] [cursor=pointer]:
+                  - /url: https://github.com/ivica00
+              - cell "changes" [ref=f1e348]
+              - cell "posted" [ref=f1e349]
+              - cell [ref=f1e350]
+            - row [ref=f1e351]:
+              - cell "2026-10-17" [ref=f1e352]
+              - cell [ref=f1e353]:
+                - link "#6208" [ref=f1e354] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6208
+              - cell [ref=f1e355]:
+                - link "ivica00" [ref=f1e356] [cursor=pointer]:
+                  - /url: https://github.com/ivica00
+              - cell "changes" [ref=f1e357]
+              - cell "draft" [ref=f1e358]
+              - 'cell "perf default-on DMA pipeline: no measured gain beyond #6538 prefetch; build not run (infra)" [ref=f1e359]'
+            - row [ref=f1e360]:
+              - cell "2026-10-17" [ref=f1e361]
+              - cell [ref=f1e362]:
+                - link "#6132" [ref=f1e363] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6132
+              - cell [ref=f1e364]:
+                - link "MarcZX100" [ref=f1e365] [cursor=pointer]:
+                  - /url: https://github.com/MarcZX100
+              - cell "merge" [ref=f1e366]
+              - cell "main-changed-requeued" [ref=f1e367]
+              - 'cell "main changed files also touched by the PR: core/libs/prx/libkernel/File/src/Open.cpp" [ref=f1e368]'
+            - row [ref=f1e369]:
+              - cell "2026-10-17" [ref=f1e370]
+              - cell [ref=f1e371]:
+                - link "#6208" [ref=f1e372] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6208
+              - cell [ref=f1e373]:
+                - link "ivica00" [ref=f1e374] [cursor=pointer]:
+                  - /url: https://github.com/ivica00
+              - cell "merge" [ref=f1e375]
+              - cell "stale" [ref=f1e376]
+              - cell "new comments since the review (ivica00 milescoviello)" [ref=f1e377]
+            - row [ref=f1e378]:
+              - cell "2026-10-17" [ref=f1e379]
+              - cell [ref=f1e380]:
+                - link "#5976" [ref=f1e381] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/5976
+              - cell [ref=f1e382]:
+                - link "fma-rc" [ref=f1e383] [cursor=pointer]:
+                  - /url: https://github.com/fma-rc
+              - cell "merge" [ref=f1e384]
+              - cell "stale" [ref=f1e385]
+              - cell "head moved ef1f2a0 -> 67f13f6" [ref=f1e386]
+            - row [ref=f1e387]:
+              - cell "2026-10-17" [ref=f1e388]
+              - cell [ref=f1e389]:
+                - link "#6083" [ref=f1e390] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6083
+              - cell [ref=f1e391]:
+                - link "n-delic" [ref=f1e392] [cursor=pointer]:
+                  - /url: https://github.com/n-delic
+              - cell "merged-elsewhere" [ref=f1e393]
+              - cell "posted" [ref=f1e394]
+              - cell "merged by oneandonlydean before our post" [ref=f1e395]
+            - row [ref=f1e396]:
+              - cell "2026-10-17" [ref=f1e397]
+              - cell [ref=f1e398]:
+                - link "#5940" [ref=f1e399] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/5940
+              - cell [ref=f1e400]:
+                - link "zmeizy" [ref=f1e401] [cursor=pointer]:
+                  - /url: https://github.com/zmeizy
+              - cell "merged-elsewhere" [ref=f1e402]
+              - cell "posted" [ref=f1e403]
+              - cell "merged by oneandonlydean before our post" [ref=f1e404]
+            - row [ref=f1e405]:
+              - cell "2026-10-17" [ref=f1e406]
+              - cell [ref=f1e407]:
+                - link "#5915" [ref=f1e408] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/5915
+              - cell [ref=f1e409]:
+                - link "SandstromPL" [ref=f1e410] [cursor=pointer]:
+                  - /url: https://github.com/SandstromPL
+              - cell "merged-elsewhere" [ref=f1e411]
+              - cell "posted" [ref=f1e412]
+              - cell "merged by adriadam10 before our post" [ref=f1e413]
+            - row [ref=f1e414]:
+              - cell "2026-10-17" [ref=f1e415]
+              - cell [ref=f1e416]:
+                - link "#6012" [ref=f1e417] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6012
+              - cell [ref=f1e418]:
+                - link "EagleBearerYS" [ref=f1e419] [cursor=pointer]:
+                  - /url: https://github.com/EagleBearerYS
+              - cell "merge" [ref=f1e420]
+              - cell "main-changed-requeued" [ref=f1e421]
+              - 'cell "main changed files also touched by the PR: core/libs/prx/libSceAgcDriver/CMakeLists.txt, core/libs/prx/libSceAgcDriver/Execution/src/VulkanDevice.cpp, core/libs/prx/libSceAgcDriver/Graphics/src/ShaderResources.cpp, docs/user/INPUT_MAPPING.md, docs/user/USAGE.md" [ref=f1e422]'
+            - row [ref=f1e423]:
+              - cell "2026-10-17" [ref=f1e424]
+              - cell [ref=f1e425]:
+                - link "#6105" [ref=f1e426] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6105
+              - cell [ref=f1e427]:
+                - link "Zinebyte" [ref=f1e428] [cursor=pointer]:
+                  - /url: https://github.com/Zinebyte
+              - cell "merge-queue" [ref=f1e429]
+              - cell "posted" [ref=f1e430]
+              - cell "merged by the merge queue" [ref=f1e431]
+            - row [ref=f1e432]:
+              - cell "2026-10-17" [ref=f1e433]
+              - cell [ref=f1e434]:
+                - link "#6142" [ref=f1e435] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6142
+              - cell [ref=f1e436]:
+                - link "milescoviello" [ref=f1e437] [cursor=pointer]:
+                  - /url: https://github.com/milescoviello
+              - cell "merge" [ref=f1e438]
+              - cell "main-changed-requeued" [ref=f1e439]
+              - 'cell "main changed files also touched by the PR: core/libs/prx/libSceNet/Export.cpp, core/libs/tests/GuestSceNet.cpp" [ref=f1e440]'
+            - row [ref=f1e441]:
+              - cell "2026-10-17" [ref=f1e442]
+              - cell [ref=f1e443]:
+                - link "#6140" [ref=f1e444] [cursor=pointer]:
+                  - /url: https://github.com/boykopovar/AnyPS5/pull/6140
+              - cell [ref=f1e445]:
+                - link "milescoviello" [ref=f1e446] [cursor=pointer]:
+                  - /url: https://github.com/milescoviello
+              - cell "merge" [ref=f1e447]
+              - cell "main-changed-requeued" [ref=f1e448]
+              - 'cell "main changed files also touched by the PR: core/libs/prx/libSceNet/Export.cpp, core/libs/tests/GuestSceNet.cpp" [ref=f1e449]'

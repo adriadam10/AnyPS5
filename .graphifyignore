@@ -1,0 +1,43 @@
+# Local and generated state
+/scratchpad/
+/memory/
+/.claude/
+/.playwright-mcp/
+/graphify-out/
+
+# Product code and dependencies: unrelated to merge-queue capacity
+/3rdparty/
+/app0/
+/core/
+/data/
+/docs/
+/tools/
+/CMakeLists.txt
+/README.md
+/CONTRIBUTING.md
+/LICENSE
+/CLAUDE.md
+
+# Only workflows and labels that affect build/queue capacity
+/.github/*
+!/.github/labeler.yml
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/area-labels.yml
+!/.github/workflows/build.yml
+!/.github/workflows/pr-overlap.yml
+
+# Improvement tracks unrelated to CI and merge-queue operation
+/improvements/projects/
+/improvements/docs/
+/improvements/memory/
+/improvements/CLAUDE.md
+/improvements/README.md
+/improvements/systems/developer-tools/
+/improvements/systems/distributed-build/
+/improvements/systems/game-analysis/
+/improvements/systems/hardware-oracle/
+/improvements/systems/review-automation/
+
+# `tools/` contains compatibility aliases; index only canonical implementations.
+/improvements/tools/
